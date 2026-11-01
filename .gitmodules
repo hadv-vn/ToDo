@@ -1,0 +1,3 @@
+[submodule "auth-core"]
+	path = auth-core
+	url = https://github.com/hadv-vn/Multi-user-System.git
