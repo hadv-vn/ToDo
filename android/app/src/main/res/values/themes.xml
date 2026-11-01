@@ -1,0 +1,4 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base theme nền tảng cho Activity gốc; UI thực tế dùng Material3 Compose Theme (xem presentation/theme/Theme.kt). -->
+    <style name="Theme.ToDo" parent="android:Theme.Material.Light.NoActionBar" />
+</resources>
