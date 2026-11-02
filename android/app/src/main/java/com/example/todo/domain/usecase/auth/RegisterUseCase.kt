@@ -2,7 +2,6 @@ package com.example.todo.domain.usecase.auth
 
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
-import com.example.todo.domain.model.AuthSession
 import com.example.todo.domain.repository.AuthRepository
 import javax.inject.Inject
 
@@ -11,6 +10,8 @@ import javax.inject.Inject
  * invalid -> ApiResult.Error(BAD_REQUEST,...) ngay, KHÔNG gọi network. Validate ở đây mang tính
  * defensive (bảo vệ invariant nghiệp vụ bất kể entry point nào gọi) — ViewModel validate lại lần
  * đầu để hiển thị lỗi inline tức thời, không phải trùng lặp vô ích (xem LLD mục 4.1 cuối).
+ *
+ * `confirmPassword` CHỈ validate ở client — auth-core `RegisterDto` không nhận field này.
  */
 class RegisterUseCase @Inject constructor(
     private val authRepository: AuthRepository
@@ -19,7 +20,7 @@ class RegisterUseCase @Inject constructor(
         email: String,
         password: String,
         confirmPassword: String
-    ): ApiResult<AuthSession> {
+    ): ApiResult<Unit> {
         if (!AuthValidationRules.isValidEmail(email)) {
             return ApiResult.Error(ApiErrorCode.BAD_REQUEST, "Email không đúng định dạng")
         }
@@ -32,6 +33,6 @@ class RegisterUseCase @Inject constructor(
         if (confirmPassword != password) {
             return ApiResult.Error(ApiErrorCode.BAD_REQUEST, "Xác nhận mật khẩu không khớp")
         }
-        return authRepository.register(email.trim(), password, confirmPassword)
+        return authRepository.register(email.trim(), password)
     }
 }

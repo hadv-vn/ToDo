@@ -52,7 +52,7 @@ fun ForgotPasswordScreen(
     ) {
         Text(text = "Quên mật khẩu", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Nhập email để nhận mã xác nhận đặt lại mật khẩu")
+        Text(text = "Nhập email để nhận token đặt lại mật khẩu")
         Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedTextField(
@@ -84,7 +84,7 @@ fun ForgotPasswordScreen(
                     color = MaterialTheme.colorScheme.onPrimary
                 )
             } else {
-                Text("Gửi mã xác nhận")
+                Text("Gửi token xác nhận")
             }
         }
         Spacer(modifier = Modifier.height(16.dp))

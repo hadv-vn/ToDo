@@ -118,11 +118,6 @@ private fun NavGraphHost(navController: NavHostController) {
         }
         composable(Routes.REGISTER) {
             RegisterScreen(
-                onNavigateToTaskList = {
-                    navController.navigate(Routes.TASK_LIST) {
-                        popUpTo(Routes.LOGIN) { inclusive = true }
-                    }
-                },
                 onNavigateToLogin = { navController.popBackStack() }
             )
         }

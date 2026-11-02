@@ -1,9 +1,10 @@
 package com.example.todo.di
 
 import com.example.todo.BuildConfig
+import com.example.todo.data.local.SessionCookieStore
 import com.example.todo.data.remote.api.AuthApiService
 import com.example.todo.data.remote.api.TaskApiService
-import com.example.todo.data.remote.interceptor.AuthHeaderInterceptor
+import com.example.todo.data.remote.interceptor.CsrfHeaderInterceptor
 import com.example.todo.data.remote.interceptor.SessionExpiredInterceptor
 import dagger.Module
 import dagger.Provides
@@ -23,18 +24,17 @@ import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFact
 /**
  * Cung cấp OkHttpClient + Retrofit qua Hilt — theo LLD mục 3.1/3.7 và HLD mục 2.
  *
- * Phase 1: thêm AuthHeaderInterceptor/SessionExpiredInterceptor (401 toàn cục), AuthApiService,
- * appScope sống cùng Application (dùng bởi SessionExpiredInterceptor để launch coroutine xử lý
- * suspend fun từ trong intercept() không-suspend). TaskApiService thuộc Phase 2.
+ * `auth-core` xác thực qua session cookie (KHÔNG phải Bearer JWT) -> `cookieJar(sessionCookieStore)`
+ * tự động gắn/lưu `Cookie`/`Set-Cookie` cho mọi request, không cần interceptor gắn header thủ công
+ * như `AuthHeaderInterceptor` lịch sử. [CsrfHeaderInterceptor] gắn thêm `x-csrf-token` cho request
+ * thay đổi dữ liệu.
  *
- * Thứ tự interceptor: loggingInterceptor được add TRƯỚC authHeaderInterceptor để log ghi lại
- * request ở dạng CHƯA có header Authorization (giảm rủi ro JWT bị in ra Logcat ở build debug).
+ * Thứ tự interceptor: loggingInterceptor TRƯỚC csrfHeaderInterceptor để log ghi lại request ở
+ * dạng CHƯA có header CSRF (không ảnh hưởng bảo mật như JWT nhưng giữ nguyên convention cũ).
  *
- * Phase 2: thêm TaskApiService (nhóm /tasks, có Authorization qua AuthHeaderInterceptor).
- *
- * BASE_URL đọc theo build variant qua BuildConfig (xem app/build.gradle.kts):
- * - debug: "http://10.0.2.2:3000/" (alias loopback của emulator Android tới localhost máy host).
- * - release: TODO, cần chốt domain + TLS production trước khi build release thật.
+ * BASE_URL đọc theo build variant qua BuildConfig (xem app/build.gradle.kts) — chỉ là
+ * `scheme://host:port/`, mỗi endpoint Retrofit tự thêm tiền tố `api/v1/` (xem AuthApiService/
+ * TaskApiService) khớp `@Controller('api/v1/...')` của auth-core.
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -57,7 +57,8 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideOkHttpClient(
-        authHeaderInterceptor: AuthHeaderInterceptor,
+        sessionCookieStore: SessionCookieStore,
+        csrfHeaderInterceptor: CsrfHeaderInterceptor,
         sessionExpiredInterceptor: SessionExpiredInterceptor
     ): OkHttpClient {
         val loggingInterceptor = HttpLoggingInterceptor().apply {
@@ -68,8 +69,9 @@ object NetworkModule {
             }
         }
         return OkHttpClient.Builder()
+            .cookieJar(sessionCookieStore)
             .addInterceptor(loggingInterceptor)
-            .addInterceptor(authHeaderInterceptor)
+            .addInterceptor(csrfHeaderInterceptor)
             .addInterceptor(sessionExpiredInterceptor)
             .build()
     }

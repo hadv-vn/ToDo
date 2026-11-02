@@ -4,7 +4,6 @@ import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
-import androidx.compose.ui.test.onAllNodes
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
@@ -67,18 +66,13 @@ class TaskListScreenTest {
     }
 
     private class FakeAuthRepositoryLogoutOnly : AuthRepository {
-        override suspend fun register(email: String, password: String, confirmPassword: String) =
-            throw NotImplementedError()
+        override suspend fun register(email: String, password: String) = throw NotImplementedError()
         override suspend fun login(email: String, password: String) = throw NotImplementedError()
         override suspend fun logout() = Unit
+        override suspend fun resendVerification(email: String) = throw NotImplementedError()
         override suspend fun forgotPassword(email: String) = throw NotImplementedError()
-        override suspend fun resetPassword(
-            email: String,
-            otp: String,
-            newPassword: String,
-            confirmNewPassword: String
-        ) = throw NotImplementedError()
-        override suspend fun hasStoredToken(): Boolean = false
+        override suspend fun resetPassword(token: String, newPassword: String) = throw NotImplementedError()
+        override suspend fun hasActiveSession(): Boolean = false
     }
 
     private fun createListViewModel(tasks: List<Task>): TaskListViewModel {

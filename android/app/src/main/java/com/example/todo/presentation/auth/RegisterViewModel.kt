@@ -73,7 +73,14 @@ class RegisterViewModel @Inject constructor(
             val result = registerUseCase(state.email.trim(), state.password, state.confirmPassword)
             when (result) {
                 is ApiResult.Success -> {
-                    _uiState.update { it.copy(isSubmitting = false, registerSuccess = true) }
+                    _uiState.update {
+                        it.copy(
+                            isSubmitting = false,
+                            registerSuccess = true,
+                            successMessage = "Đăng ký thành công. Vui lòng kiểm tra email để xác thực " +
+                                "tài khoản trước khi đăng nhập."
+                        )
+                    }
                 }
                 is ApiResult.Error -> {
                     val message = when (result.code) {

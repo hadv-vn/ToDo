@@ -17,7 +17,50 @@
 
 ---
 
-## 0. Hai điểm mở đã được giao quyết định dứt điểm
+## CẬP NHẬT 2026-11-02 — Chuyển sang `auth-core`, TOÀN BỘ contract dưới đây ĐÃ LỖI THỜI
+
+Backend Express/Prisma riêng của project (mô tả trong toàn bộ file này) đã bị
+**xóa**. Project chuyển sang dùng chung backend NestJS của submodule
+`auth-core` (`hadv-vn/Multi-user-System`) cho phần Auth, và thêm một module
+Task mới (`auth-core/backend/src/features/todo-task-module/`) — mở rộng
+riêng cho ToDo, sống trong `auth-core`, KHÔNG phải phần generic của
+Multi-user-System (xem `README.md` mục "1. auth-core (submodule)"). Toàn bộ
+nội dung từ mục 1 trở xuống của file này mô tả **contract cũ, đã lỗi thời**,
+giữ lại chỉ để tham khảo lịch sử. Các điểm thay đổi chính:
+
+1. **Base path**: `/v1/...` → **`api/v1/...`** cho mọi endpoint (`api/v1/auth/*`,
+   `api/v1/tasks/*`), khác mục 1.1 (không prefix version) của contract cũ.
+2. **Auth**: JWT Bearer token → **session cookie httpOnly (`sid`)** do
+   server set qua `Set-Cookie`, kèm **CSRF double-submit cookie** (`csrfToken`
+   / header `x-csrf-token`) cho mọi request thay đổi dữ liệu trên route đã
+   đăng nhập (trừ `login`/`register`/`forgot-password`/`reset-password`/
+   `logout`). Không còn `accessToken` trong response body.
+3. **Đăng ký bắt buộc xác thực email** trước khi login được (`EmailNotVerifiedException`,
+   HTTP 403, `errorCode = "EMAIL_NOT_VERIFIED"`) — khác hoàn toàn mục 0.2/2.1
+   cũ ("đăng ký thành công nhận token trực tiếp, không cần `/auth/login`
+   riêng"). Có thêm `POST api/v1/auth/resend-verification`.
+4. **Reset password dùng token từ link email**, không phải OTP 6 số —
+   `POST api/v1/auth/reset-password` nhận `{ token, newPassword }`, KHÔNG có
+   `email`/`confirmNewPassword` trong body (khác mục 0.2/2.4 cũ).
+5. **Response envelope đổi hoàn toàn**: thành công bọc `{ data, message? }`,
+   lỗi bọc `{ error: { code, message, details?, retryAfterSeconds? } }` —
+   khác mục 1.5 cũ (bare JSON / `{ message }`).
+6. **Task CRUD** (`api/v1/tasks`) giữ đúng method/path/semantic nghiệp vụ như
+   contract cũ (`POST`/`GET`/`GET :id`/`PUT :id`/`DELETE :id`, `PUT` dùng
+   chung cho sửa nội dung và đổi status qua 2 DTO khác nhau, `status` vẫn
+   `"open"`/`"done"` lowercase, không expose `ownerId`) — chỉ khác ở việc bọc
+   response trong `{ data }` và path có prefix `api/v1/`.
+7. **`DELETE /tasks/:id` vẫn trả `204 No Content`** không đổi.
+
+Chi tiết implementation thật: xem
+`auth-core/backend/src/features/todo-task-module/` (Task) và
+`auth-core/backend/src/auth/`, `session/`, `common/csrf/` (Auth/Session/CSRF).
+Phía Android: `android/app/src/main/java/com/example/todo/data/` (DTO/API
+service/repository đã cập nhật khớp).
+
+---
+
+## 0. Hai điểm mở đã được giao quyết định dứt điểm (LỊCH SỬ — đã lỗi thời, xem mục cập nhật trên)
 
 1. **Bổ sung `GET /tasks/:id`**: ĐÃ THÊM vào contract chính thức (mục 3.3).
    Loại bỏ hoàn toàn rủi ro mất dữ liệu do `SelectedTaskHolder` in-memory khi

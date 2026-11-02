@@ -8,20 +8,23 @@ import com.example.todo.domain.model.AuthSession
  * Implementation thật (AuthRepositoryImpl) thuộc Phase 1, KHÔNG implement ở Phase 0.
  */
 interface AuthRepository {
-    suspend fun register(email: String, password: String, confirmPassword: String): ApiResult<AuthSession>
+    // auth-core bắt buộc xác thực email trước khi login được -> KHÔNG trả AuthSession (chưa có
+    // session nào được tạo ở bước đăng ký).
+    suspend fun register(email: String, password: String): ApiResult<Unit>
+
     suspend fun login(email: String, password: String): ApiResult<AuthSession>
 
-    // Chỉ xóa token cục bộ, KHÔNG gọi API (không có /auth/logout).
+    // Gọi POST /auth/logout thật (auth-core có session server-side cần revoke), rồi luôn xóa
+    // cookie session cục bộ dù API thành công hay lỗi.
     suspend fun logout()
 
-    suspend fun forgotPassword(email: String): ApiResult<Unit>
-    suspend fun resetPassword(
-        email: String,
-        otp: String,
-        newPassword: String,
-        confirmNewPassword: String
-    ): ApiResult<Unit>
+    suspend fun resendVerification(email: String): ApiResult<Unit>
 
-    // Kiểm tra nhanh có token lưu cục bộ hay không (dùng cho "giữ phiên").
-    suspend fun hasStoredToken(): Boolean
+    suspend fun forgotPassword(email: String): ApiResult<Unit>
+
+    // `token` lấy từ link email (auth-core reset-password dùng token, KHÔNG phải OTP).
+    suspend fun resetPassword(token: String, newPassword: String): ApiResult<Unit>
+
+    // Kiểm tra nhanh có session cookie còn hạn lưu cục bộ hay không (dùng cho "giữ phiên").
+    suspend fun hasActiveSession(): Boolean
 }

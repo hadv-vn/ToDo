@@ -6,6 +6,7 @@ import com.example.todo.domain.common.ApiResult
 import com.example.todo.domain.model.AuthSession
 import com.example.todo.domain.model.AuthUser
 import com.example.todo.domain.usecase.auth.LoginUseCase
+import com.example.todo.domain.usecase.auth.ResendVerificationUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -23,18 +24,15 @@ import org.junit.Before
 import org.junit.Test
 
 /**
- * Unit test minh họa cho [LoginViewModel] — dùng MockK cho [LoginUseCase], Turbine cho StateFlow.
- *
- * LƯU Ý QUAN TRỌNG: máy phát triển hiện tại KHÔNG có Android SDK cài sẵn (ghi nhận ở Phase 0),
- * nên `./gradlew :app:testDebugUnitTest` CHƯA được chạy thật để xác nhận pass/fail. Code test này
- * đã được rà soát thủ công kỹ (import, kiểu dữ liệu, thứ tự state emit) nhưng CHƯA verify bằng
- * cách chạy thật.
+ * Unit test cho [LoginViewModel] — MockK cho [LoginUseCase]/[ResendVerificationUseCase], Turbine
+ * cho StateFlow.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class LoginViewModelTest {
 
     private val testDispatcher = UnconfinedTestDispatcher()
     private val loginUseCase: LoginUseCase = mockk()
+    private val resendVerificationUseCase: ResendVerificationUseCase = mockk()
 
     @Before
     fun setUp() {
@@ -46,9 +44,11 @@ class LoginViewModelTest {
         Dispatchers.resetMain()
     }
 
+    private fun createViewModel() = LoginViewModel(loginUseCase, resendVerificationUseCase)
+
     @Test
     fun `onSubmit voi email rong thi khong goi UseCase va hien loi inline`() = runTest(testDispatcher) {
-        val viewModel = LoginViewModel(loginUseCase)
+        val viewModel = createViewModel()
 
         viewModel.onPasswordChange("abc12345")
         viewModel.onSubmit()
@@ -64,10 +64,10 @@ class LoginViewModelTest {
 
     @Test
     fun `onSubmit thanh cong thi set loginSuccess true va tat loading`() = runTest(testDispatcher) {
-        val session = AuthSession(accessToken = "token123", user = AuthUser(id = "u1", email = "a@b.com"))
+        val session = AuthSession(user = AuthUser(id = "u1", email = "a@b.com"))
         coEvery { loginUseCase("a@b.com", "password1") } returns ApiResult.Success(session)
 
-        val viewModel = LoginViewModel(loginUseCase)
+        val viewModel = createViewModel()
         viewModel.onEmailChange("a@b.com")
         viewModel.onPasswordChange("password1")
 
@@ -90,7 +90,7 @@ class LoginViewModelTest {
         coEvery { loginUseCase("a@b.com", "wrongpass") } returns
             ApiResult.Error(ApiErrorCode.UNAUTHORIZED, "Email hoặc mật khẩu không đúng")
 
-        val viewModel = LoginViewModel(loginUseCase)
+        val viewModel = createViewModel()
         viewModel.onEmailChange("a@b.com")
         viewModel.onPasswordChange("wrongpass")
 
@@ -104,6 +104,55 @@ class LoginViewModelTest {
             assertEquals("Email hoặc mật khẩu không đúng", errorState.generalError)
             assertFalse(errorState.isSubmitting)
             assertFalse(errorState.loginSuccess)
+            assertFalse(errorState.showResendVerification)
         }
+    }
+
+    @Test
+    fun `onSubmit email chua xac thuc thi hien nut gui lai email xac thuc`() = runTest(testDispatcher) {
+        coEvery { loginUseCase("a@b.com", "password1") } returns
+            ApiResult.Error(ApiErrorCode.FORBIDDEN, "Email chưa được xác thực", "EMAIL_NOT_VERIFIED")
+
+        val viewModel = createViewModel()
+        viewModel.onEmailChange("a@b.com")
+        viewModel.onPasswordChange("password1")
+
+        viewModel.uiState.test {
+            awaitItem()
+
+            viewModel.onSubmit()
+
+            awaitItem() // isSubmitting = true
+            val errorState = awaitItem()
+            assertEquals("Email chưa được xác thực", errorState.generalError)
+            assertTrue(errorState.showResendVerification)
+        }
+    }
+
+    @Test
+    fun `onResendVerification thanh cong thi hien infoMessage va tat nut resend`() = runTest(testDispatcher) {
+        coEvery { loginUseCase("a@b.com", "password1") } returns
+            ApiResult.Error(ApiErrorCode.FORBIDDEN, "Email chưa được xác thực", "EMAIL_NOT_VERIFIED")
+        coEvery { resendVerificationUseCase("a@b.com") } returns ApiResult.Success(Unit)
+
+        val viewModel = createViewModel()
+        viewModel.onEmailChange("a@b.com")
+        viewModel.onPasswordChange("password1")
+        viewModel.onSubmit()
+
+        viewModel.uiState.test {
+            awaitItem() // state sau login lỗi EMAIL_NOT_VERIFIED
+
+            viewModel.onResendVerification()
+
+            awaitItem() // isSubmitting = true
+            val state = awaitItem()
+            assertFalse(state.showResendVerification)
+            assertEquals(
+                "Nếu email tồn tại và chưa xác thực, một email xác thực mới đã được gửi.",
+                state.infoMessage
+            )
+        }
+        coVerify(exactly = 1) { resendVerificationUseCase("a@b.com") }
     }
 }

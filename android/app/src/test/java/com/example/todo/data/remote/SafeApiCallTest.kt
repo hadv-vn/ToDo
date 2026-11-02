@@ -24,8 +24,10 @@ private data class FakeBody(val value: String)
 
 class SafeApiCallTest {
 
-    private fun jsonError(message: String): ResponseBody =
-        "{\"message\":\"$message\"}".toResponseBody("application/json".toMediaType())
+    // Envelope lỗi chuẩn của auth-core — `{ error: { code, message } }`, xem
+    // auth-core/backend/src/common/filters/all-exceptions.filter.ts.
+    private fun jsonError(message: String, code: String = "SOME_ERROR_CODE"): ResponseBody =
+        "{\"error\":{\"code\":\"$code\",\"message\":\"$message\"}}".toResponseBody("application/json".toMediaType())
 
     @Test
     fun `response thanh cong thi tra Success voi dung data`() = runTest {
@@ -35,12 +37,16 @@ class SafeApiCallTest {
     }
 
     @Test
-    fun `status 400 thi map thanh Error BAD_REQUEST`() = runTest {
-        val result = safeApiCall<FakeBody> { Response.error(400, jsonError("Dữ liệu không hợp lệ")) }
+    fun `status 400 thi map thanh Error BAD_REQUEST, giu dung errorCode tu server`() = runTest {
+        val result = safeApiCall<FakeBody> {
+            Response.error(400, jsonError("Dữ liệu không hợp lệ", code = "VALIDATION_ERROR"))
+        }
 
         assertTrue(result is ApiResult.Error)
-        assertEquals(ApiErrorCode.BAD_REQUEST, (result as ApiResult.Error).code)
-        assertEquals("Dữ liệu không hợp lệ", result.message)
+        val error = result as ApiResult.Error
+        assertEquals(ApiErrorCode.BAD_REQUEST, error.code)
+        assertEquals("Dữ liệu không hợp lệ", error.message)
+        assertEquals("VALIDATION_ERROR", error.errorCode)
     }
 
     @Test

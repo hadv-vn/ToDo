@@ -24,7 +24,10 @@ import org.junit.Test
 
 /**
  * Unit test cho [ResetPasswordViewModel] — MockK cho [ResetPasswordUseCase], Turbine cho StateFlow.
- * Theo LLD mục 4.2/6.2. `email` được nhận qua [SavedStateHandle] (nav argument).
+ * Theo LLD mục 4.2/6.2. `email` được nhận qua [SavedStateHandle] (nav argument, chỉ hiển thị).
+ *
+ * auth-core reset-password dùng `token` (lấy từ link email) thay cho `otp` 6 số của backend
+ * Express cũ — không có rule format cố định, chỉ validate "không rỗng".
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class ResetPasswordViewModelTest {
@@ -53,9 +56,8 @@ class ResetPasswordViewModelTest {
     }
 
     @Test
-    fun `onSubmit otp sai dinh dang thi khong goi UseCase va hien loi inline`() = runTest(testDispatcher) {
+    fun `onSubmit token rong thi khong goi UseCase va hien loi inline`() = runTest(testDispatcher) {
         val viewModel = ResetPasswordViewModel(resetPasswordUseCase, savedStateHandleWithEmail("user@test.com"))
-        viewModel.onOtpChange("12") // chưa đủ 6 số
         viewModel.onNewPasswordChange("password1")
         viewModel.onConfirmNewPasswordChange("password1")
 
@@ -63,19 +65,19 @@ class ResetPasswordViewModelTest {
 
         viewModel.uiState.test {
             val state = awaitItem()
-            assertEquals("Mã xác nhận phải gồm đúng 6 chữ số", state.otpError)
+            assertEquals("Vui lòng nhập token xác nhận từ email", state.tokenError)
             assertFalse(state.resetSuccess)
         }
-        coVerify(exactly = 0) { resetPasswordUseCase(any(), any(), any(), any()) }
+        coVerify(exactly = 0) { resetPasswordUseCase(any(), any(), any()) }
     }
 
     @Test
-    fun `onSubmit otp va password hop le thi goi UseCase va set resetSuccess true`() = runTest(testDispatcher) {
-        coEvery { resetPasswordUseCase("user@test.com", "123456", "password1", "password1") } returns
+    fun `onSubmit token va password hop le thi goi UseCase va set resetSuccess true`() = runTest(testDispatcher) {
+        coEvery { resetPasswordUseCase("reset-token-abc", "password1", "password1") } returns
             ApiResult.Success(Unit)
 
         val viewModel = ResetPasswordViewModel(resetPasswordUseCase, savedStateHandleWithEmail("user@test.com"))
-        viewModel.onOtpChange("123456")
+        viewModel.onTokenChange("reset-token-abc")
         viewModel.onNewPasswordChange("password1")
         viewModel.onConfirmNewPasswordChange("password1")
 
@@ -94,12 +96,12 @@ class ResetPasswordViewModelTest {
     }
 
     @Test
-    fun `onSubmit OTP sai server tra 400 thi hien loi dung message`() = runTest(testDispatcher) {
-        coEvery { resetPasswordUseCase("user@test.com", "999999", "password1", "password1") } returns
-            ApiResult.Error(ApiErrorCode.BAD_REQUEST, "Mã xác nhận không đúng hoặc đã hết hạn")
+    fun `onSubmit token sai server tra 400 thi hien loi dung message`() = runTest(testDispatcher) {
+        coEvery { resetPasswordUseCase("expired-token", "password1", "password1") } returns
+            ApiResult.Error(ApiErrorCode.BAD_REQUEST, "Token không đúng hoặc đã hết hạn")
 
         val viewModel = ResetPasswordViewModel(resetPasswordUseCase, savedStateHandleWithEmail("user@test.com"))
-        viewModel.onOtpChange("999999")
+        viewModel.onTokenChange("expired-token")
         viewModel.onNewPasswordChange("password1")
         viewModel.onConfirmNewPasswordChange("password1")
 
@@ -110,10 +112,9 @@ class ResetPasswordViewModelTest {
 
             awaitItem() // isSubmitting = true
             val errorState = awaitItem()
-            // Theo ResetPasswordViewModel.onSubmit thực tế: message lỗi từ server (BAD_REQUEST) được
-            // gán vào `generalError` (không có field riêng cho otp ở nhánh lỗi server) — khác với
-            // lỗi validate client (otpError) ở trên.
-            assertEquals("Mã xác nhận không đúng hoặc đã hết hạn", errorState.generalError)
+            // Message lỗi từ server (BAD_REQUEST) được gán vào `generalError` (không có field riêng
+            // cho token ở nhánh lỗi server) — khác với lỗi validate client (tokenError) ở trên.
+            assertEquals("Token không đúng hoặc đã hết hạn", errorState.generalError)
             assertFalse(errorState.isSubmitting)
             assertFalse(errorState.resetSuccess)
         }

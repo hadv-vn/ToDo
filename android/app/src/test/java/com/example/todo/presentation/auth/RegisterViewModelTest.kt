@@ -3,10 +3,7 @@ package com.example.todo.presentation.auth
 import app.cash.turbine.test
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
-import com.example.todo.domain.model.AuthSession
-import com.example.todo.domain.model.AuthUser
 import com.example.todo.domain.usecase.auth.RegisterUseCase
-import io.mockk.coAnswers
 import io.mockk.coEvery
 import io.mockk.coVerify
 import io.mockk.mockk
@@ -28,10 +25,8 @@ import org.junit.Test
  * Unit test cho [RegisterViewModel] — MockK cho [RegisterUseCase], Turbine cho StateFlow.
  * Theo LLD mục 4.2/6.1 (validate inline đồng bộ TRƯỚC khi gọi UseCase).
  *
- * LƯU Ý: máy phát triển hiện tại KHÔNG có Android SDK cài sẵn, nên `./gradlew :app:testDebugUnitTest`
- * chưa chắc chạy thật được trên máy này — code đã được rà soát thủ công kỹ (import, kiểu dữ liệu,
- * thứ tự state emit dưới UnconfinedTestDispatcher) nhưng cần xác nhận bằng cách chạy thật khi có
- * môi trường đầy đủ.
+ * auth-core bắt buộc xác thực email trước khi login -> `registerUseCase` trả `ApiResult<Unit>`
+ * (KHÔNG còn `AuthSession`), đăng ký thành công chỉ khóa form + hiện `successMessage`.
  */
 @OptIn(ExperimentalCoroutinesApi::class)
 class RegisterViewModelTest {
@@ -109,26 +104,27 @@ class RegisterViewModelTest {
     }
 
     @Test
-    fun `onSubmit thanh cong thi set registerSuccess true va tat isSubmitting`() = runTest(testDispatcher) {
-        val session = AuthSession(accessToken = "token123", user = AuthUser(id = "u1", email = "a@b.com"))
-        coEvery { registerUseCase("a@b.com", "password1", "password1") } returns ApiResult.Success(session)
+    fun `onSubmit thanh cong thi set registerSuccess true, hien successMessage, tat isSubmitting`() =
+        runTest(testDispatcher) {
+            coEvery { registerUseCase("a@b.com", "password1", "password1") } returns ApiResult.Success(Unit)
 
-        val viewModel = RegisterViewModel(registerUseCase)
-        fillValidForm(viewModel)
+            val viewModel = RegisterViewModel(registerUseCase)
+            fillValidForm(viewModel)
 
-        viewModel.uiState.test {
-            awaitItem() // state hiện tại sau 3 lần onXxxChange, trước khi submit
+            viewModel.uiState.test {
+                awaitItem() // state hiện tại sau 3 lần onXxxChange, trước khi submit
 
-            viewModel.onSubmit()
+                viewModel.onSubmit()
 
-            val submitting = awaitItem()
-            assertTrue(submitting.isSubmitting)
+                val submitting = awaitItem()
+                assertTrue(submitting.isSubmitting)
 
-            val success = awaitItem()
-            assertTrue(success.registerSuccess)
-            assertFalse(success.isSubmitting)
+                val success = awaitItem()
+                assertTrue(success.registerSuccess)
+                assertFalse(success.isSubmitting)
+                assertTrue(success.successMessage?.isNotBlank() == true)
+            }
         }
-    }
 
     @Test
     fun `onSubmit email da ton tai thi hien loi Email da duoc su dung`() = runTest(testDispatcher) {
@@ -153,7 +149,7 @@ class RegisterViewModelTest {
 
     @Test
     fun `goi onSubmit 2 lan lien tiep khi dang isSubmitting thi chi goi UseCase 1 lan`() = runTest(testDispatcher) {
-        val pending = CompletableDeferred<ApiResult<AuthSession>>()
+        val pending = CompletableDeferred<ApiResult<Unit>>()
         coEvery { registerUseCase("a@b.com", "password1", "password1") } coAnswers { pending.await() }
 
         val viewModel = RegisterViewModel(registerUseCase)
@@ -164,8 +160,6 @@ class RegisterViewModelTest {
 
         coVerify(exactly = 1) { registerUseCase("a@b.com", "password1", "password1") }
 
-        pending.complete(
-            ApiResult.Success(AuthSession(accessToken = "t", user = AuthUser(id = "u1", email = "a@b.com")))
-        )
+        pending.complete(ApiResult.Success(Unit))
     }
 }

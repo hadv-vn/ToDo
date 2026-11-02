@@ -11,6 +11,7 @@ import com.example.todo.domain.model.AuthSession
 import com.example.todo.domain.model.AuthUser
 import com.example.todo.domain.repository.AuthRepository
 import com.example.todo.domain.usecase.auth.LoginUseCase
+import com.example.todo.domain.usecase.auth.ResendVerificationUseCase
 import kotlinx.coroutines.CompletableDeferred
 import org.junit.Rule
 import org.junit.Test
@@ -24,10 +25,6 @@ import org.junit.Test
  * trường). Thay vào đó dùng [FakeAuthRepository] viết tay implement thẳng interface
  * [AuthRepository], rồi dựng [LoginUseCase]/[LoginViewModel] THẬT — [LoginScreen] nhận `viewModel`
  * qua tham số có default `hiltViewModel()` nên test truyền thẳng instance thật vào, KHÔNG cần Hilt.
- *
- * LƯU Ý QUAN TRỌNG: máy phát triển hiện tại KHÔNG có Android SDK/emulator, nên
- * `./gradlew :app:connectedAndroidTest` CHƯA thể chạy thật được. Test này đã được rà soát thủ công
- * kỹ nhưng CHƯA verify bằng cách chạy thật.
  */
 class LoginScreenTest {
 
@@ -37,7 +34,7 @@ class LoginScreenTest {
     private class FakeAuthRepository(
         private val pendingLoginResult: CompletableDeferred<ApiResult<AuthSession>>
     ) : AuthRepository {
-        override suspend fun register(email: String, password: String, confirmPassword: String) =
+        override suspend fun register(email: String, password: String) =
             throw NotImplementedError("Không dùng trong LoginScreenTest")
 
         override suspend fun login(email: String, password: String): ApiResult<AuthSession> =
@@ -45,23 +42,26 @@ class LoginScreenTest {
 
         override suspend fun logout() = Unit
 
+        override suspend fun resendVerification(email: String) =
+            throw NotImplementedError("Không dùng trong LoginScreenTest")
+
         override suspend fun forgotPassword(email: String) =
             throw NotImplementedError("Không dùng trong LoginScreenTest")
 
-        override suspend fun resetPassword(
-            email: String,
-            otp: String,
-            newPassword: String,
-            confirmNewPassword: String
-        ) = throw NotImplementedError("Không dùng trong LoginScreenTest")
+        override suspend fun resetPassword(token: String, newPassword: String) =
+            throw NotImplementedError("Không dùng trong LoginScreenTest")
 
-        override suspend fun hasStoredToken(): Boolean = false
+        override suspend fun hasActiveSession(): Boolean = false
     }
 
     @Test
     fun nhapEmailPasswordNhanDangNhap_hienThiLoadingDungLucChoKetQua() {
         val pending = CompletableDeferred<ApiResult<AuthSession>>()
-        val viewModel = LoginViewModel(LoginUseCase(FakeAuthRepository(pending)))
+        val fakeAuthRepository = FakeAuthRepository(pending)
+        val viewModel = LoginViewModel(
+            LoginUseCase(fakeAuthRepository),
+            ResendVerificationUseCase(fakeAuthRepository)
+        )
         var navigatedToTaskList = false
 
         composeTestRule.setContent {
@@ -86,9 +86,7 @@ class LoginScreenTest {
         // -> chỉ còn 1 node khớp text "Đăng nhập" (tiêu đề màn hình).
         composeTestRule.onAllNodesWithText("Đăng nhập").assertCountEquals(1)
 
-        pending.complete(
-            ApiResult.Success(AuthSession(accessToken = "token", user = AuthUser(id = "u1", email = "a@b.com")))
-        )
+        pending.complete(ApiResult.Success(AuthSession(user = AuthUser(id = "u1", email = "a@b.com"))))
         composeTestRule.waitForIdle()
 
         assert(navigatedToTaskList) { "onNavigateToTaskList phải được gọi sau khi login thành công" }

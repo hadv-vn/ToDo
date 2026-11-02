@@ -51,16 +51,16 @@ fun ResetPasswordScreen(
     ) {
         Text(text = "Đặt lại mật khẩu", style = MaterialTheme.typography.headlineMedium)
         Spacer(modifier = Modifier.height(8.dp))
-        Text(text = "Mã xác nhận đã được gửi tới ${uiState.email}")
+        Text(text = "Một email chứa token đặt lại mật khẩu đã được gửi tới ${uiState.email}")
         Spacer(modifier = Modifier.height(24.dp))
 
         OutlinedTextField(
-            value = uiState.otp,
-            onValueChange = viewModel::onOtpChange,
-            label = { Text("Mã xác nhận (6 số)") },
-            isError = uiState.otpError != null,
-            supportingText = { uiState.otpError?.let { Text(it) } },
-            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword),
+            value = uiState.token,
+            onValueChange = viewModel::onTokenChange,
+            label = { Text("Token xác nhận (lấy từ email)") },
+            isError = uiState.tokenError != null,
+            supportingText = { uiState.tokenError?.let { Text(it) } },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Text),
             singleLine = true,
             enabled = !uiState.isSubmitting,
             modifier = Modifier.fillMaxWidth()

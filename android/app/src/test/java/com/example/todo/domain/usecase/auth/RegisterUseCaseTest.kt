@@ -2,8 +2,6 @@ package com.example.todo.domain.usecase.auth
 
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
-import com.example.todo.domain.model.AuthSession
-import com.example.todo.domain.model.AuthUser
 import com.example.todo.domain.repository.AuthRepository
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -16,6 +14,9 @@ import org.junit.Test
 /**
  * Unit test cho [RegisterUseCase] (test riêng, không qua ViewModel) — theo LLD mục 4.1: validate
  * email/password/confirm TRƯỚC khi gọi Repository; invalid -> KHÔNG bao giờ gọi network.
+ *
+ * `confirmPassword` CHỈ validate ở client — auth-core `RegisterDto` không nhận field này, nên
+ * `AuthRepository.register` chỉ nhận `(email, password)` và trả `ApiResult<Unit>`.
  */
 class RegisterUseCaseTest {
 
@@ -28,7 +29,7 @@ class RegisterUseCaseTest {
 
         assertTrue(result is ApiResult.Error)
         assertEquals(ApiErrorCode.BAD_REQUEST, (result as ApiResult.Error).code)
-        coVerify(exactly = 0) { authRepository.register(any(), any(), any()) }
+        coVerify(exactly = 0) { authRepository.register(any(), any()) }
     }
 
     @Test
@@ -37,7 +38,7 @@ class RegisterUseCaseTest {
 
         assertTrue(result is ApiResult.Error)
         assertEquals(ApiErrorCode.BAD_REQUEST, (result as ApiResult.Error).code)
-        coVerify(exactly = 0) { authRepository.register(any(), any(), any()) }
+        coVerify(exactly = 0) { authRepository.register(any(), any()) }
     }
 
     @Test
@@ -46,18 +47,18 @@ class RegisterUseCaseTest {
 
         assertTrue(result is ApiResult.Error)
         assertEquals(ApiErrorCode.BAD_REQUEST, (result as ApiResult.Error).code)
-        coVerify(exactly = 0) { authRepository.register(any(), any(), any()) }
+        coVerify(exactly = 0) { authRepository.register(any(), any()) }
     }
 
     @Test
-    fun `input hop le thi goi Repository voi email da trim va tra ve ket qua Repository`() = runTest {
-        val session = AuthSession(accessToken = "token", user = AuthUser(id = "u1", email = "a@b.com"))
-        coEvery { authRepository.register("a@b.com", "password1", "password1") } returns ApiResult.Success(session)
+    fun `input hop le thi goi Repository voi email da trim, khong gui confirmPassword, tra ve ket qua Repository`() =
+        runTest {
+            coEvery { authRepository.register("a@b.com", "password1") } returns ApiResult.Success(Unit)
 
-        // Email có khoảng trắng đầu/cuối -> UseCase phải trim trước khi gọi Repository.
-        val result = useCase("  a@b.com  ", "password1", "password1")
+            // Email có khoảng trắng đầu/cuối -> UseCase phải trim trước khi gọi Repository.
+            val result = useCase("  a@b.com  ", "password1", "password1")
 
-        assertEquals(ApiResult.Success(session), result)
-        coVerify(exactly = 1) { authRepository.register("a@b.com", "password1", "password1") }
-    }
+            assertEquals(ApiResult.Success(Unit), result)
+            coVerify(exactly = 1) { authRepository.register("a@b.com", "password1") }
+        }
 }

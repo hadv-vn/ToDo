@@ -84,6 +84,20 @@ fun LoginScreen(
             Text(text = error, color = MaterialTheme.colorScheme.error)
             Spacer(modifier = Modifier.height(8.dp))
         }
+        uiState.infoMessage?.let { message ->
+            Text(text = message, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
+        if (uiState.showResendVerification) {
+            TextButton(
+                onClick = viewModel::onResendVerification,
+                enabled = !uiState.isSubmitting,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text("Gửi lại email xác thực")
+            }
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         Button(
             onClick = viewModel::onSubmit,

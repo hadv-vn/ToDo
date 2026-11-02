@@ -23,8 +23,9 @@ android {
 
     buildTypes {
         debug {
-            // Emulator loopback alias to host machine's localhost — backend chạy cục bộ ở dev.
-            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:3000/\"")
+            // Emulator loopback alias to host machine's localhost — backend NestJS của auth-core
+            // (xem auth-core/CLAUDE.md: "Backend dev server (port 8081)"), chạy cục bộ ở dev.
+            buildConfigField("String", "BASE_URL", "\"http://10.0.2.2:8081/\"")
         }
         release {
             isMinifyEnabled = false

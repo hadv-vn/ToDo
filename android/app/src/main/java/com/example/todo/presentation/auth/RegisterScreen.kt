@@ -16,7 +16,6 @@ import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
@@ -26,23 +25,20 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 
 /**
- * Màn hình Đăng ký — theo LLD mục 4.2/6.1. Đăng ký thành công nhận token trực tiếp (API_Contract
- * mục 2.1), không cần gọi /auth/login riêng.
+ * Màn hình Đăng ký — theo LLD mục 4.2/6.1.
+ *
+ * auth-core bắt buộc xác thực email trước khi login được -> đăng ký thành công KHÔNG tự động vào
+ * app, chỉ khóa form + hiện [RegisterUiState.successMessage], người dùng tự bấm "Đăng nhập" (sau
+ * khi đã xác thực email) qua [onNavigateToLogin].
  */
 @Composable
 fun RegisterScreen(
     modifier: Modifier = Modifier,
     viewModel: RegisterViewModel = hiltViewModel(),
-    onNavigateToTaskList: () -> Unit = {},
     onNavigateToLogin: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
-
-    LaunchedEffect(uiState.registerSuccess) {
-        if (uiState.registerSuccess) {
-            onNavigateToTaskList()
-        }
-    }
+    val fieldsEnabled = !uiState.isSubmitting && !uiState.registerSuccess
 
     Column(
         modifier = modifier
@@ -61,7 +57,7 @@ fun RegisterScreen(
             supportingText = { uiState.emailError?.let { Text(it) } },
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
             singleLine = true,
-            enabled = !uiState.isSubmitting,
+            enabled = fieldsEnabled,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -77,7 +73,7 @@ fun RegisterScreen(
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             singleLine = true,
-            enabled = !uiState.isSubmitting,
+            enabled = fieldsEnabled,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -91,7 +87,7 @@ fun RegisterScreen(
             visualTransformation = PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password),
             singleLine = true,
-            enabled = !uiState.isSubmitting,
+            enabled = fieldsEnabled,
             modifier = Modifier.fillMaxWidth()
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -100,10 +96,14 @@ fun RegisterScreen(
             Text(text = error, color = MaterialTheme.colorScheme.error)
             Spacer(modifier = Modifier.height(8.dp))
         }
+        uiState.successMessage?.let { message ->
+            Text(text = message, color = MaterialTheme.colorScheme.primary)
+            Spacer(modifier = Modifier.height(8.dp))
+        }
 
         Button(
             onClick = viewModel::onSubmit,
-            enabled = !uiState.isSubmitting,
+            enabled = fieldsEnabled,
             modifier = Modifier.fillMaxWidth()
         ) {
             if (uiState.isSubmitting) {

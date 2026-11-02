@@ -4,8 +4,8 @@ import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
-import com.example.todo.data.local.TokenLocalDataSource
-import com.example.todo.data.local.TokenLocalDataSourceImpl
+import com.example.todo.data.local.SessionCookieStore
+import com.example.todo.data.local.SessionCookieStoreImpl
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -21,7 +21,8 @@ private const val PREFERENCES_NAME = "todo_secure_prefs"
 private val Context.secureDataStore: DataStore<Preferences> by preferencesDataStore(name = PREFERENCES_NAME)
 
 /**
- * Cung cấp DataStore<Preferences> singleton + [TokenLocalDataSource] — theo đề bài Phase 1 mục 6.
+ * Cung cấp DataStore<Preferences> singleton + [SessionCookieStore] (lưu cookie session/CSRF của
+ * `auth-core`, thay cho JWT `TokenLocalDataSource` lịch sử).
  */
 @Module
 @InstallIn(SingletonComponent::class)
@@ -35,10 +36,10 @@ object DataStoreModule {
 
     @Provides
     @Singleton
-    fun provideTokenLocalDataSource(
+    fun provideSessionCookieStore(
         @ApplicationContext context: Context,
         dataStore: DataStore<Preferences>
-    ): TokenLocalDataSource {
-        return TokenLocalDataSourceImpl(context, dataStore)
+    ): SessionCookieStore {
+        return SessionCookieStoreImpl(context, dataStore)
     }
 }

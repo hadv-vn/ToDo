@@ -27,29 +27,29 @@ class TaskRepositoryImpl @Inject constructor(
 
     override suspend fun getTasks(filter: TaskStatus?): ApiResult<List<Task>> {
         return safeApiCall { taskApiService.getTasks(filter?.toWireValue()) }
-            .mapSuccess { dtos -> dtos.map { it.toDomain() } }
+            .mapSuccess { envelope -> envelope.data.map { it.toDomain() } }
     }
 
     override suspend fun getTaskById(id: String): ApiResult<Task> {
-        return safeApiCall { taskApiService.getTaskById(id) }.mapSuccess { it.toDomain() }
+        return safeApiCall { taskApiService.getTaskById(id) }.mapSuccess { it.data.toDomain() }
     }
 
     override suspend fun createTask(title: String, description: String?): ApiResult<Task> {
         return safeApiCall {
             taskApiService.createTask(CreateTaskRequestDto(title = title, description = description))
-        }.mapSuccess { it.toDomain() }
+        }.mapSuccess { it.data.toDomain() }
     }
 
     override suspend fun editTask(id: String, title: String, description: String?): ApiResult<Task> {
         return safeApiCall {
             taskApiService.updateTaskDetails(id, UpdateTaskDetailsRequestDto(title = title, description = description))
-        }.mapSuccess { it.toDomain() }
+        }.mapSuccess { it.data.toDomain() }
     }
 
     override suspend fun toggleTaskStatus(id: String, newStatus: TaskStatus): ApiResult<Task> {
         return safeApiCall {
             taskApiService.updateTaskStatus(id, UpdateTaskStatusRequestDto(status = newStatus.toWireValue()))
-        }.mapSuccess { it.toDomain() }
+        }.mapSuccess { it.data.toDomain() }
     }
 
     override suspend fun deleteTask(id: String): ApiResult<Unit> {

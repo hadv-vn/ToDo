@@ -20,8 +20,8 @@ suspend fun <T> safeApiCall(block: suspend () -> Response<T>): ApiResult<T> {
             ApiResult.Success(response.body() as T)
         } else {
             val code = mapHttpStatusToApiErrorCode(response.code())
-            val message = parseErrorMessage(response.errorBody())
-            ApiResult.Error(code, message)
+            val parsedError = parseErrorBody(response.errorBody())
+            ApiResult.Error(code, parsedError?.message, parsedError?.code)
         }
     } catch (e: IOException) {
         // Mất mạng, timeout.
@@ -42,18 +42,24 @@ private fun mapHttpStatusToApiErrorCode(httpStatus: Int): ApiErrorCode = when (h
     else -> ApiErrorCode.UNKNOWN
 }
 
-// Error Response Schema chuẩn dùng chung mọi endpoint — API_Contract_ToDo_Android.md mục 1.5.
-// Chỉ cần field `message` ở Android (details/fieldErrors không dùng để hiển thị theo LLD mục 4.4
-// — Android map lỗi theo status code sang chuỗi UI tiếng Việt cố định của riêng nó).
+// Envelope lỗi chuẩn của auth-core — `{ error: { code, message, details?, retryAfterSeconds? } }`,
+// xem auth-core/backend/src/common/filters/all-exceptions.filter.ts. Chỉ cần `code`/`message` ở
+// Android (details/retryAfterSeconds chưa dùng tới).
 @Serializable
-private data class ErrorResponseDto(val message: String? = null)
+private data class ErrorEnvelopeDto(val error: ErrorBodyDto? = null)
+
+@Serializable
+private data class ErrorBodyDto(val code: String? = null, val message: String? = null)
+
+private data class ParsedError(val code: String?, val message: String?)
 
 private val errorBodyJson = Json { ignoreUnknownKeys = true }
 
-private fun parseErrorMessage(errorBody: ResponseBody?): String? {
+private fun parseErrorBody(errorBody: ResponseBody?): ParsedError? {
     return try {
         val raw = errorBody?.string() ?: return null
-        errorBodyJson.decodeFromString<ErrorResponseDto>(raw).message
+        val body = errorBodyJson.decodeFromString<ErrorEnvelopeDto>(raw).error ?: return null
+        ParsedError(code = body.code, message = body.message)
     } catch (e: Exception) {
         null
     }

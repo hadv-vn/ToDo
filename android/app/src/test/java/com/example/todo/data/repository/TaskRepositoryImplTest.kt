@@ -2,6 +2,8 @@ package com.example.todo.data.repository
 
 import com.example.todo.data.remote.api.TaskApiService
 import com.example.todo.data.remote.dto.task.TaskDto
+import com.example.todo.data.remote.dto.task.TaskEnvelopeDto
+import com.example.todo.data.remote.dto.task.TaskListEnvelopeDto
 import com.example.todo.data.remote.dto.task.UpdateTaskDetailsRequestDto
 import com.example.todo.data.remote.dto.task.UpdateTaskStatusRequestDto
 import com.example.todo.domain.common.ApiErrorCode
@@ -45,7 +47,8 @@ class TaskRepositoryImplTest {
 
     @Test
     fun `editTask thi goi updateTaskDetails voi title va description`() = runTest {
-        coEvery { taskApiService.updateTaskDetails("task-1", any()) } returns Response.success(taskDto)
+        coEvery { taskApiService.updateTaskDetails("task-1", any()) } returns
+            Response.success(TaskEnvelopeDto(data = taskDto))
 
         val result = repository.editTask("task-1", "Mua sữa tươi", "2 lít")
 
@@ -61,7 +64,7 @@ class TaskRepositoryImplTest {
     @Test
     fun `editTask voi description null thi van gui truong description = null (khong bi luoc bo)`() = runTest {
         coEvery { taskApiService.updateTaskDetails("task-1", any()) } returns
-            Response.success(taskDto.copy(description = null))
+            Response.success(TaskEnvelopeDto(data = taskDto.copy(description = null)))
 
         val result = repository.editTask("task-1", "Mua sữa tươi", null)
 
@@ -77,7 +80,7 @@ class TaskRepositoryImplTest {
     @Test
     fun `toggleTaskStatus thi goi updateTaskStatus CHI voi status, khong co truong title hoac description`() = runTest {
         coEvery { taskApiService.updateTaskStatus("task-1", any()) } returns
-            Response.success(taskDto.copy(status = "done"))
+            Response.success(TaskEnvelopeDto(data = taskDto.copy(status = "done")))
 
         val result = repository.toggleTaskStatus("task-1", TaskStatus.DONE)
 
@@ -90,7 +93,7 @@ class TaskRepositoryImplTest {
 
     @Test
     fun `getTasks thanh cong thi map dung List TaskDto sang List Task`() = runTest {
-        coEvery { taskApiService.getTasks(null) } returns Response.success(listOf(taskDto))
+        coEvery { taskApiService.getTasks(null) } returns Response.success(TaskListEnvelopeDto(data = listOf(taskDto)))
 
         val result = repository.getTasks(filter = null)
 
@@ -103,7 +106,8 @@ class TaskRepositoryImplTest {
 
     @Test
     fun `deleteTask nhan 404 thi tra Error NOT_FOUND`() = runTest {
-        val errorBody = "{\"message\":\"Task không tồn tại\"}".toResponseBody("application/json".toMediaType())
+        val errorBody = "{\"error\":{\"code\":\"TASK_NOT_FOUND\",\"message\":\"Task không tồn tại\"}}"
+            .toResponseBody("application/json".toMediaType())
         coEvery { taskApiService.deleteTask("task-404") } returns Response.error(404, errorBody)
 
         val result = repository.deleteTask("task-404")

@@ -2,7 +2,7 @@
 
 Ứng dụng quản lý công việc (Task/To-Do) theo từng người dùng, gồm 2 phần:
 
-- **`auth-core/`** — **git submodule**, trỏ tới repo [hadv-vn/Multi-user-System](https://github.com/hadv-vn/Multi-user-System) — cung cấp toàn bộ backend dùng chung (NestJS + Prisma + PostgreSQL, có sẵn Auth/Session/RBAC/Account/Admin) và một frontend Next.js riêng của hệ thống đó. Project này **không tự viết backend** mà dùng lại nguyên khối backend trong submodule này — xem chi tiết ở [mục auth-core](#auth-core-submodule) bên dưới.
+- **`auth-core/`** — **git submodule**, trỏ tới repo [hadv-vn/Multi-user-System](https://github.com/hadv-vn/Multi-user-System) — cung cấp backend dùng chung (NestJS + Prisma + PostgreSQL, có sẵn Auth/Session/RBAC/Account/Admin) và một frontend Next.js riêng của hệ thống đó, **cộng thêm module Task CRUD** (`backend/src/features/todo-task-module/`) được thêm riêng cho ToDo. Project này **không tự viết backend riêng** mà dùng lại/mở rộng ngay trong submodule này — xem chi tiết ở [mục auth-core](#1-auth-core-submodule) bên dưới.
 - **`android/`** — Ứng dụng Android native (Kotlin + Jetpack Compose + Clean Architecture), gọi API từ backend trong `auth-core/`.
 
 Toàn bộ tài liệu thiết kế (yêu cầu, kiến trúc, API contract) nằm ở [`docs/`](docs/):
@@ -61,7 +61,8 @@ Toàn bộ hướng dẫn cài đặt, chạy, cấu hình `.env`, scripts build
 
 - **Backend**: NestJS + Prisma + PostgreSQL, modular monolith (`auth`, `session`, `rbac`, `account`, `admin`, `email`...), API tại `/api/v1`, chạy ở cổng **8081**.
 - **Frontend** (của riêng `auth-core`, không phải app Android): Next.js + Tailwind, chạy ở cổng **8080**.
-- Session lưu phía server trong PostgreSQL (không dùng JWT) — xem ADR trong `auth-core/docs/`.
+- Session lưu phía server trong PostgreSQL (không dùng JWT, xác thực qua cookie httpOnly `sid` + CSRF double-submit cookie `csrfToken`/header `x-csrf-token`) — xem ADR trong `auth-core/docs/`.
+- **Task CRUD cho ToDo**: module `backend/src/features/todo-task-module/` (API `api/v1/tasks`) — **mở rộng riêng cho project ToDo**, tái dùng `AuthGuard`/CSRF/Prisma có sẵn của `auth-core`, KHÔNG phải phần generic của Multi-user-System. Android gọi thẳng endpoint này, cùng host/port với Auth (8081).
 
 Chạy nhanh (Linux, theo scripts có sẵn trong submodule):
 
