@@ -13,6 +13,7 @@ Toàn bộ tài liệu thiết kế (yêu cầu, kiến trúc, API contract) n�
 | [`docs/HLD_ToDo_Android.md`](docs/HLD_ToDo_Android.md) | Kiến trúc hệ thống, lựa chọn thư viện |
 | [`docs/LLD_ToDo_Android.md`](docs/LLD_ToDo_Android.md) | Thiết kế class/module chi tiết, sequence diagram |
 | [`docs/API_Contract_ToDo_Android.md`](docs/API_Contract_ToDo_Android.md) | Đặc tả request/response từng endpoint |
+| [`docs/Admin_Task_Statistics_ToDo.md`](docs/Admin_Task_Statistics_ToDo.md) | Thống kê công việc cho ADMIN trên web admin (chỉ số liệu tổng hợp) |
 
 ## Yêu cầu môi trường
 
