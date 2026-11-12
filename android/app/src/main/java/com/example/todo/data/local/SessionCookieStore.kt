@@ -70,6 +70,9 @@ class SessionCookieStoreImpl(
     }
 
     private fun getSecretKey(): SecretKey {
+        // Chạm masterKey để MasterKey.Builder.build() tạo key trong AndroidKeyStore nếu chưa có —
+        // không gọi thì alias DEFAULT_MASTER_KEY_ALIAS chưa tồn tại và keyStore.getKey() trả null.
+        masterKey
         val keyStore = KeyStore.getInstance(ANDROID_KEYSTORE).apply { load(null) }
         return keyStore.getKey(MasterKey.DEFAULT_MASTER_KEY_ALIAS, null) as SecretKey
     }
