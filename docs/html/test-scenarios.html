@@ -1,0 +1,1287 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kịch bản test chức năng — ToDo Android · ToDo Android Docs</title>
+<link rel="stylesheet" href="assets/doc.css">
+
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand"><span class="mark">📚</span> ToDo Android · Docs</div>
+  <nav class="topnav">
+    <a href="index.html">Tổng quan</a>
+    <a href="readme.html">README</a>
+    <a href="srs.html">SRS</a>
+    <a href="hld.html">HLD</a>
+    <a href="lld.html">LLD</a>
+    <a href="api-contract.html">API Contract</a>
+    <a href="admin-task-statistics.html">Admin Thống kê</a>
+    <a href="test-scenarios.html" class="active">Kịch bản Test</a>
+  </nav>
+</div></div>
+
+<div class="shell">
+  <article>
+    <div class="doc-head">
+      <div class="eyebrow">QA · Kịch bản test</div>
+      <h1>Kịch bản test chức năng — ToDo Android</h1>
+      <div class="doc-meta"><span>Nguồn: <code>docs\Test_Scenarios_ToDo_Android.md</code></span><span>Cập nhật: 2026-11-14</span></div>
+    </div>
+    
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Phạm vi</strong></td>
+<td>App Android <code>com.example.todo</code> (bản debug) + backend <code>auth-core</code> (cổng 8081)</td>
+</tr>
+<tr>
+<td><strong>Loại test</strong></td>
+<td>Test chức năng thủ công trên emulator (black-box, end-to-end)</td>
+</tr>
+<tr>
+<td><strong>Căn cứ</strong></td>
+<td><a href="SRS_ToDo_Android.md">SRS_ToDo_Android.md</a> (FR-01 → FR-17) và code hiện tại trong <code>android/app/src/main/</code></td>
+</tr>
+<tr>
+<td><strong>Ngày tạo</strong></td>
+<td>2026-11-14</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Kịch bản viết theo <strong>hành vi thật của app hiện tại</strong>. Ở chỗ app khác SRS, kết quả mong đợi theo code và được đánh dấu ⚠️. Danh sách đầy đủ các điểm lệch nằm ở <a href="#4-%C4%91i%E1%BB%83m-l%E1%BB%87ch-gi%E1%BB%AFa-app-v%C3%A0-srs--c%E1%BA%A7n-x%C3%A1c-nh%E1%BA%ADn">mục 4</a>.</p>
+<hr />
+<h2 id="1-chuẩn-bị-môi-trường">1. Chuẩn bị môi trường</h2>
+<h3 id="11-tiền-điều-kiện-chung">1.1 Tiền điều kiện chung</h3>
+<ol>
+<li>Backend <code>auth-core</code> đang chạy ở <code>http://localhost:8081</code> (từ emulator: <code>http://10.0.2.2:8081</code>).</li>
+<li>Emulator đang chạy, APK debug đã cài:<pre><code class="language-powershell">.\android\scripts\run-android.ps1
+</code></pre>
+</li>
+<li>Đọc được email xác thực / email reset mật khẩu. Nếu chưa cấu hình SMTP, nội dung email nằm trong console log của backend.</li>
+</ol>
+<h3 id="12-dữ-liệu-test">1.2 Dữ liệu test</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Ký hiệu</th>
+<th>Mô tả</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>U1</code></td>
+<td>Tài khoản đã xác thực email, mật khẩu <code>Passw0rd1</code></td>
+</tr>
+<tr>
+<td><code>U2</code></td>
+<td>Tài khoản thứ hai đã xác thực email (dùng để test ownership)</td>
+</tr>
+<tr>
+<td><code>U3</code></td>
+<td>Tài khoản đã đăng ký nhưng <strong>chưa</strong> xác thực email</td>
+</tr>
+<tr>
+<td><code>NEW</code></td>
+<td>Email chưa từng đăng ký, ví dụ <code>qa+&lt;timestamp&gt;@example.com</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="13-cách-giả-lập-tình-huống-đặc-biệt">1.3 Cách giả lập tình huống đặc biệt</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Tình huống</th>
+<th>Cách làm</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Mất mạng</td>
+<td><code>adb shell svc wifi disable; adb shell svc data disable</code>. Bật lại bằng <code>enable</code>. Hoặc bật chế độ máy bay trên emulator</td>
+</tr>
+<tr>
+<td>Server không phản hồi</td>
+<td>Tạm dừng backend (<code>auth-core/scripts/stop-all.sh</code> hoặc dừng process)</td>
+</tr>
+<tr>
+<td>Phiên hết hạn (401)</td>
+<td>Thu hồi session của user trên web admin <code>auth-core</code>, hoặc xóa bản ghi session trong DB, rồi thao tác tiếp trên app</td>
+</tr>
+<tr>
+<td>Task bị xóa ở nơi khác (404)</td>
+<td>Đăng nhập cùng user trên web/curl/thiết bị khác, xóa task đó, rồi thao tác trên app với dữ liệu cũ (chưa refresh)</td>
+</tr>
+<tr>
+<td>Xoay màn hình</td>
+<td>Nút xoay trên thanh công cụ emulator, hoặc <code>adb shell settings put system user_rotation 1</code> (<code>0</code> để xoay lại)</td>
+</tr>
+<tr>
+<td>Mạng chậm (để thấy loading)</td>
+<td>Extended controls của emulator → Cellular → Network speed: GSM/EDGE</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="14-quy-ước">1.4 Quy ước</h3>
+<ul>
+<li><strong>Ưu tiên:</strong> P1 = luồng chính / chặn release · P2 = validate &amp; xử lý lỗi · P3 = edge case.</li>
+<li><strong>Kết quả:</strong> ghi <code>Pass</code> / <code>Fail</code> / <code>Blocked</code> vào cột <em>KQ</em> khi thực thi.</li>
+</ul>
+<hr />
+<h2 id="2-tổng-hợp">2. Tổng hợp</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Nhóm</th>
+<th>Mã test</th>
+<th>Số case</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Đăng ký</td>
+<td>TC-REG-01 → 10</td>
+<td>10</td>
+</tr>
+<tr>
+<td>Đăng nhập</td>
+<td>TC-LOGIN-01 → 09</td>
+<td>9</td>
+</tr>
+<tr>
+<td>Đăng xuất</td>
+<td>TC-LOGOUT-01 → 04</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Phiên hết hạn</td>
+<td>TC-SESS-01 → 03</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Quên / đặt lại mật khẩu</td>
+<td>TC-PWD-01 → 11</td>
+<td>11</td>
+</tr>
+<tr>
+<td>Danh sách task</td>
+<td>TC-LIST-01 → 08</td>
+<td>8</td>
+</tr>
+<tr>
+<td>Lọc</td>
+<td>TC-FILTER-01 → 05</td>
+<td>5</td>
+</tr>
+<tr>
+<td>Pull-to-refresh</td>
+<td>TC-REFRESH-01 → 04</td>
+<td>4</td>
+</tr>
+<tr>
+<td>Tạo task</td>
+<td>TC-CREATE-01 → 09</td>
+<td>9</td>
+</tr>
+<tr>
+<td>Sửa task</td>
+<td>TC-EDIT-01 → 08</td>
+<td>8</td>
+</tr>
+<tr>
+<td>Toggle trạng thái</td>
+<td>TC-TOGGLE-01 → 06</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Xóa task</td>
+<td>TC-DEL-01 → 06</td>
+<td>6</td>
+</tr>
+<tr>
+<td>Ownership / dữ liệu cũ</td>
+<td>TC-OWN-01 → 03</td>
+<td>3</td>
+</tr>
+<tr>
+<td>Hiệu năng &amp; vòng đời app</td>
+<td>TC-PERF-01 → 03</td>
+<td>3</td>
+</tr>
+<tr>
+<td><strong>Tổng</strong></td>
+<td></td>
+<td><strong>89</strong></td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="3-kịch-bản-chi-tiết">3. Kịch bản chi tiết</h2>
+<h3 id="31-đăng-ký-fr-01">3.1 Đăng ký — FR-01</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-REG-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Đăng ký thành công</td>
+<td>1. Login → &quot;Chưa có tài khoản? Đăng ký&quot; <br>2. Nhập email <code>NEW</code>, mật khẩu <code>Passw0rd1</code>, xác nhận <code>Passw0rd1</code> <br>3. Nhấn <strong>Đăng ký</strong></td>
+<td>⚠️ Hiện thông báo &quot;Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản trước khi đăng nhập.&quot; Form bị khóa, <strong>không</strong> tự vào danh sách task. Backend gửi email xác thực</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Xác thực email rồi đăng nhập</td>
+<td>1. Làm TC-REG-01 <br>2. Mở link xác thực trong email/log <br>3. Quay lại Login, đăng nhập bằng tài khoản vừa tạo</td>
+<td>Đăng nhập thành công, vào &quot;Task của tôi&quot; với empty-state</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Bỏ trống các ô</td>
+<td>Để trống cả 3 ô → nhấn <strong>Đăng ký</strong></td>
+<td>Lỗi inline dưới từng ô, không gọi API (không có loading)</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Email sai định dạng</td>
+<td>Email <code>abc@</code>, mật khẩu hợp lệ → <strong>Đăng ký</strong></td>
+<td>Lỗi inline &quot;Email không đúng định dạng&quot;, không gọi API</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-05</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mật khẩu &lt; 8 ký tự</td>
+<td>Mật khẩu <code>Ab1</code></td>
+<td>Lỗi inline &quot;Mật khẩu phải tối thiểu 8 ký tự, có ít nhất 1 chữ và 1 số&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-06</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mật khẩu chỉ có chữ / chỉ có số</td>
+<td>Lần lượt dùng <code>abcdefgh</code> và <code>12345678</code></td>
+<td>Cả 2 lần đều có lỗi inline như TC-REG-05</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-07</td>
+<td><span class="pill p2">P2</span></td>
+<td>Xác nhận mật khẩu không khớp</td>
+<td>Mật khẩu <code>Passw0rd1</code>, xác nhận <code>Passw0rd2</code></td>
+<td>Lỗi inline &quot;Xác nhận mật khẩu không khớp&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-08</td>
+<td><span class="pill p2">P2</span></td>
+<td>Email đã tồn tại (409)</td>
+<td>Đăng ký bằng email của <code>U1</code></td>
+<td>&quot;Email đã được sử dụng&quot;. Dữ liệu đã nhập còn nguyên</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-09</td>
+<td><span class="pill p3">P3</span></td>
+<td>Chống nhấn trùng</td>
+<td>Bật mạng chậm → nhấn <strong>Đăng ký</strong> 2–3 lần liên tục</td>
+<td>Nút chuyển sang loading/disable, backend chỉ nhận 1 request</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REG-10</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mất mạng</td>
+<td>Tắt mạng → nhập dữ liệu hợp lệ → <strong>Đăng ký</strong></td>
+<td>&quot;Không có kết nối mạng, vui lòng thử lại&quot;, app không crash, giữ dữ liệu đã nhập</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="32-đăng-nhập-fr-02">3.2 Đăng nhập — FR-02</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-LOGIN-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Đăng nhập thành công</td>
+<td>Nhập <code>U1</code> + mật khẩu đúng → <strong>Đăng nhập</strong></td>
+<td>Vào màn &quot;Task của tôi&quot;, danh sách task của <code>U1</code> được tải</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-02</td>
+<td><span class="pill p2">P2</span></td>
+<td>Bỏ trống email/mật khẩu</td>
+<td>Để trống từng ô → <strong>Đăng nhập</strong></td>
+<td>&quot;Email không được để trống&quot; / &quot;Mật khẩu không được để trống&quot;, không gọi API</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Sai mật khẩu</td>
+<td><code>U1</code> + <code>Wrong1234</code></td>
+<td>&quot;Email hoặc mật khẩu không đúng&quot;, vẫn ở màn Login</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Email không tồn tại</td>
+<td><code>nobody@example.com</code> + mật khẩu bất kỳ</td>
+<td>Cùng thông báo như TC-LOGIN-03 (không lộ ô nào sai)</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-05</td>
+<td><span class="pill p2">P2</span></td>
+<td>Email chưa xác thực</td>
+<td>Đăng nhập bằng <code>U3</code></td>
+<td>Thông báo email chưa xác thực, hiện nút <strong>Gửi lại email xác thực</strong></td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-06</td>
+<td><span class="pill p3">P3</span></td>
+<td>Gửi lại email xác thực</td>
+<td>Từ TC-LOGIN-05 → nhấn <strong>Gửi lại email xác thực</strong></td>
+<td>&quot;Nếu email tồn tại và chưa xác thực, một email xác thực mới đã được gửi.&quot;, nút ẩn đi, backend gửi email mới</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-07</td>
+<td><span class="pill p3">P3</span></td>
+<td>Chống nhấn trùng</td>
+<td>Mạng chậm → nhấn <strong>Đăng nhập</strong> liên tục</td>
+<td>Nút loading/disable, chỉ 1 request</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-08</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mất mạng / server tắt</td>
+<td>Tắt mạng (hoặc dừng backend) → <strong>Đăng nhập</strong></td>
+<td>&quot;Không có kết nối mạng, vui lòng thử lại&quot;, không crash</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGIN-09</td>
+<td><span class="pill p1">P1</span></td>
+<td>Giữ phiên khi mở lại app</td>
+<td>1. Đăng nhập <code>U1</code> <br>2. Vuốt tắt app khỏi Recents <br>3. Mở lại app</td>
+<td>SRS: vào thẳng danh sách task. ⚠️ Code hiện tại luôn bắt đầu ở màn Login → <strong>dự kiến Fail</strong>, xem mục 4</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="33-đăng-xuất-fr-03">3.3 Đăng xuất — FR-03</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-LOGOUT-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Đăng xuất</td>
+<td>Ở &quot;Task của tôi&quot; → nhấn <strong>Đăng xuất</strong></td>
+<td>⚠️ Về màn Login ngay, <strong>không có</strong> dialog xác nhận (SRS yêu cầu có, xem mục 4)</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGOUT-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Back sau khi đăng xuất</td>
+<td>Sau TC-LOGOUT-01 nhấn nút Back hệ thống</td>
+<td>Thoát app, <strong>không</strong> quay lại danh sách task</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGOUT-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Phiên đã bị hủy</td>
+<td>Sau khi đăng xuất, dùng cookie cũ gọi <code>GET /api/v1/tasks</code> (nếu lấy được), hoặc đăng nhập user khác</td>
+<td>Backend trả 401. Đăng nhập lại chỉ thấy task của user mới</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LOGOUT-04</td>
+<td><span class="pill p3">P3</span></td>
+<td>Đăng xuất khi mất mạng</td>
+<td>Tắt mạng → <strong>Đăng xuất</strong></td>
+<td>Vẫn về màn Login (cookie cục bộ luôn bị xóa), không crash</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="34-phiên-hết-hạn-fr-04">3.4 Phiên hết hạn — FR-04</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-SESS-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>401 khi ở danh sách</td>
+<td>1. Đăng nhập <code>U1</code> <br>2. Thu hồi session trên server <br>3. Pull-to-refresh</td>
+<td>Về màn Login, snackbar &quot;Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại&quot;. Back không quay lại danh sách</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-SESS-02</td>
+<td><span class="pill p2">P2</span></td>
+<td>401 khi đang ở form Tạo/Sửa</td>
+<td>1. Mở <strong>Tạo task</strong>, nhập dở <br>2. Thu hồi session <br>3. Nhấn <strong>Lưu</strong></td>
+<td>Về Login, snackbar &quot;Phiên đăng nhập đã hết hạn. Dữ liệu bạn đang nhập sẽ không được lưu, vui lòng đăng nhập lại.&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-SESS-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>401 khi toggle / xóa</td>
+<td>Thu hồi session → toggle hoặc xóa một task</td>
+<td>Về Login kèm snackbar như TC-SESS-01, không hiện lỗi chung</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="35-quên-đặt-lại-mật-khẩu-fr-05">3.5 Quên / đặt lại mật khẩu — FR-05</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-PWD-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Mở màn Quên mật khẩu</td>
+<td>Login → <strong>Quên mật khẩu?</strong></td>
+<td>Màn &quot;Quên mật khẩu&quot; với ô Email và nút <strong>Gửi token xác nhận</strong></td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Gửi yêu cầu với email hợp lệ</td>
+<td>Nhập email <code>U1</code> → <strong>Gửi token xác nhận</strong></td>
+<td>Chuyển sang &quot;Đặt lại mật khẩu&quot; với dòng &quot;Một email chứa token đặt lại mật khẩu đã được gửi tới <email>&quot;. Backend gửi email có token</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Email không tồn tại</td>
+<td>Nhập <code>nobody@example.com</code> → gửi</td>
+<td>Hành vi <strong>giống hệt</strong> TC-PWD-02 (không lộ việc email có tồn tại hay không)</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Email trống / sai định dạng</td>
+<td>Để trống, rồi nhập <code>abc</code> → gửi</td>
+<td>&quot;Email không đúng định dạng&quot;, không gọi API</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-05</td>
+<td><span class="pill p2">P2</span></td>
+<td>Quay lại đăng nhập</td>
+<td>Nhấn <strong>Quay lại đăng nhập</strong></td>
+<td>Về màn Login</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-06</td>
+<td><span class="pill p1">P1</span></td>
+<td>Đặt lại mật khẩu thành công</td>
+<td>1. Từ TC-PWD-02 nhập token từ email <br>2. Mật khẩu mới <code>NewPassw0rd1</code>, xác nhận khớp <br>3. <strong>Xác nhận</strong> <br>4. Đăng nhập bằng mật khẩu mới</td>
+<td>Bước 3: về màn Login. Bước 4: đăng nhập được. Mật khẩu cũ không còn dùng được</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-07</td>
+<td><span class="pill p2">P2</span></td>
+<td>Token trống</td>
+<td>Để trống token → <strong>Xác nhận</strong></td>
+<td>&quot;Vui lòng nhập token xác nhận từ email&quot;, không gọi API</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-08</td>
+<td><span class="pill p2">P2</span></td>
+<td>Token sai / hết hạn</td>
+<td>Nhập token <code>invalid-token</code></td>
+<td>&quot;Token không đúng hoặc đã hết hạn&quot; (hoặc thông báo cụ thể từ server)</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-09</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mật khẩu mới không hợp lệ</td>
+<td>Mật khẩu mới <code>abc</code></td>
+<td>Lỗi inline độ mạnh mật khẩu, không gọi API</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-10</td>
+<td><span class="pill p2">P2</span></td>
+<td>Xác nhận không khớp</td>
+<td>Mật khẩu mới và xác nhận khác nhau</td>
+<td>&quot;Xác nhận mật khẩu không khớp&quot;, không gọi API</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PWD-11</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mất mạng</td>
+<td>Tắt mạng ở màn Quên mật khẩu và ở màn Đặt lại → gửi</td>
+<td>&quot;Không có kết nối mạng, vui lòng thử lại&quot;, không crash</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="36-danh-sách-task-fr-06-fr-09-fr-10">3.6 Danh sách task — FR-06, FR-09, FR-10</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-LIST-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Hiển thị task của mình</td>
+<td><code>U1</code> có vài task → đăng nhập</td>
+<td>Hiển thị đủ task của <code>U1</code>, mỗi dòng có checkbox + tiêu đề</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LIST-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Không thấy task người khác</td>
+<td><code>U2</code> tạo task &quot;Task của U2&quot; → đăng nhập <code>U1</code></td>
+<td>Danh sách của <code>U1</code> <strong>không</strong> có &quot;Task của U2&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LIST-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Loading state</td>
+<td>Bật mạng chậm → đăng nhập</td>
+<td>Hiện spinner giữa màn hình khi đang tải lần đầu</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LIST-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Hiển thị task done</td>
+<td>Có task đã done</td>
+<td>Tiêu đề gạch ngang, checkbox được tick</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LIST-05</td>
+<td><span class="pill p3">P3</span></td>
+<td>Mô tả dài bị rút gọn</td>
+<td>Tạo task có mô tả dài hơn 1 dòng</td>
+<td>Mô tả chỉ hiện 1 dòng, có dấu &quot;…&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LIST-06</td>
+<td><span class="pill p1">P1</span></td>
+<td>Empty-state khi chưa có task</td>
+<td>Đăng nhập user chưa có task</td>
+<td>&quot;Bạn chưa có task nào. Nhấn + để tạo task đầu tiên.&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LIST-07</td>
+<td><span class="pill p2">P2</span></td>
+<td>Lỗi mạng ở lần tải đầu</td>
+<td>Tắt mạng → đăng nhập bằng phiên còn hiệu lực (hoặc tắt mạng ngay sau login)</td>
+<td>&quot;Không có kết nối mạng&quot; + nút <strong>Thử lại</strong>. Bật mạng → <strong>Thử lại</strong> → danh sách tải được</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-LIST-08</td>
+<td><span class="pill p2">P2</span></td>
+<td>Lỗi server (500)</td>
+<td>Làm backend trả lỗi (ví dụ tắt DB) → tải danh sách</td>
+<td>Thông báo lỗi chung + nút <strong>Thử lại</strong>, không crash</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="37-lọc-theo-trạng-thái-fr-07-fr-09">3.7 Lọc theo trạng thái — FR-07, FR-09</h3>
+<p>Dữ liệu: <code>U1</code> có ít nhất 2 task open và 2 task done.</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-FILTER-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Lọc Đang mở</td>
+<td>Nhấn chip <strong>Đang mở</strong></td>
+<td>Chỉ hiện task open, chip được chọn</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-FILTER-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Lọc Đã xong</td>
+<td>Nhấn chip <strong>Đã xong</strong></td>
+<td>Chỉ hiện task done</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-FILTER-03</td>
+<td><span class="pill p1">P1</span></td>
+<td>Về Tất cả</td>
+<td>Nhấn <strong>Tất cả</strong></td>
+<td>Hiện lại toàn bộ task</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-FILTER-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Empty-state theo bộ lọc</td>
+<td>Đánh dấu done hết task → chọn <strong>Đang mở</strong></td>
+<td>&quot;Không có task nào đang mở.&quot; (khác thông điệp của TC-LIST-06). Tương tự với <strong>Đã xong</strong>: &quot;Không có task nào đã xong.&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-FILTER-05</td>
+<td><span class="pill p2">P2</span></td>
+<td>Task biến mất khi hết khớp bộ lọc</td>
+<td>Đang lọc <strong>Đang mở</strong> → tick 1 task</td>
+<td>Task đó biến mất ngay khỏi danh sách</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="38-pull-to-refresh-fr-08">3.8 Pull-to-refresh — FR-08</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-REFRESH-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Refresh lấy dữ liệu mới</td>
+<td>Tạo task mới cho <code>U1</code> từ web/curl → trên app kéo danh sách xuống</td>
+<td>Hiện chỉ báo refresh, task mới xuất hiện</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REFRESH-02</td>
+<td><span class="pill p2">P2</span></td>
+<td>Giữ bộ lọc khi refresh</td>
+<td>Chọn <strong>Đã xong</strong> → kéo refresh</td>
+<td>Vẫn ở bộ lọc Đã xong, chỉ hiện task done</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REFRESH-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Refresh lỗi</td>
+<td>Tắt mạng → kéo refresh</td>
+<td>Chỉ báo biến mất, danh sách cũ giữ nguyên, có snackbar lỗi</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-REFRESH-04</td>
+<td><span class="pill p3">P3</span></td>
+<td>Không tự refresh khi quay lại app</td>
+<td>Thêm task từ web → app vào background → mở lại app</td>
+<td>Danh sách <strong>không</strong> tự cập nhật, chỉ có khi kéo refresh</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="39-tạo-task-fr-11">3.9 Tạo task — FR-11</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-CREATE-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Tạo task đủ tiêu đề + mô tả</td>
+<td>Nhấn <strong>+</strong> → nhập Tiêu đề &quot;Mua sữa&quot;, Mô tả &quot;2 hộp&quot; → <strong>Lưu</strong></td>
+<td>Đóng form, quay lại danh sách, &quot;Mua sữa&quot; xuất hiện ở trạng thái open</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Tạo task không có mô tả</td>
+<td>Chỉ nhập Tiêu đề → <strong>Lưu</strong></td>
+<td>Tạo thành công</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Tiêu đề trống</td>
+<td>Mở form, không nhập Tiêu đề</td>
+<td>⚠️ Nút <strong>Lưu</strong> bị disable, không gọi API được</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Tiêu đề chỉ có khoảng trắng</td>
+<td>Nhập &quot;   &quot;</td>
+<td>Nút <strong>Lưu</strong> vẫn disable</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-05</td>
+<td><span class="pill p3">P3</span></td>
+<td>Tiêu đề &gt; 255 ký tự (400 từ server)</td>
+<td>Dán chuỗi 300 ký tự → <strong>Lưu</strong></td>
+<td>Hiện lỗi trên form (thông báo từ server hoặc &quot;Dữ liệu không hợp lệ&quot;), giữ dữ liệu, vẫn ở form</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-06</td>
+<td><span class="pill p3">P3</span></td>
+<td>Chống tạo trùng</td>
+<td>Mạng chậm → nhấn <strong>Lưu</strong> liên tục</td>
+<td>Nút loading/disable, chỉ tạo <strong>1</strong> task</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-07</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mất mạng khi lưu</td>
+<td>Tắt mạng → <strong>Lưu</strong></td>
+<td>&quot;Không có kết nối mạng, vui lòng thử lại&quot;, vẫn ở form, giữ dữ liệu. Bật mạng → <strong>Lưu</strong> lại được</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-08</td>
+<td><span class="pill p2">P2</span></td>
+<td>Xoay màn hình khi đang nhập</td>
+<td>Nhập Tiêu đề + Mô tả → xoay ngang → xoay dọc</td>
+<td>Dữ liệu còn nguyên</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-CREATE-09</td>
+<td><span class="pill p3">P3</span></td>
+<td>Đóng form không lưu</td>
+<td>Nhập dở → <strong>Đóng</strong> (hoặc Back)</td>
+<td>Về danh sách, không tạo task</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="310-sửa-task-fr-12">3.10 Sửa task — FR-12</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-EDIT-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Mở form Sửa</td>
+<td>Chạm vào dòng task (không chạm checkbox)</td>
+<td>Mở &quot;Sửa task&quot;, Tiêu đề/Mô tả điền sẵn đúng</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-EDIT-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Sửa thành công</td>
+<td>Đổi Tiêu đề, Mô tả → <strong>Lưu</strong></td>
+<td>Về danh sách, thông tin mới hiển thị</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-EDIT-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Xóa hết tiêu đề</td>
+<td>Xóa hết Tiêu đề (hoặc chỉ để khoảng trắng)</td>
+<td>Nút <strong>Lưu</strong> bị disable</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-EDIT-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Task bị xóa trước khi mở form</td>
+<td>Xóa task trên web → trên app (chưa refresh) chạm vào task đó</td>
+<td>Hiện &quot;Task này không còn tồn tại&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-EDIT-05</td>
+<td><span class="pill p2">P2</span></td>
+<td>Task bị xóa trước khi lưu (404)</td>
+<td>Mở form Sửa → xóa task trên web → <strong>Lưu</strong></td>
+<td>Quay lại danh sách đã làm mới, task đó không còn</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-EDIT-06</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mất mạng khi lưu</td>
+<td>Tắt mạng → <strong>Lưu</strong></td>
+<td>Lỗi mạng, vẫn ở form, giữ dữ liệu đã sửa</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-EDIT-07</td>
+<td><span class="pill p2">P2</span></td>
+<td>Xoay màn hình khi sửa</td>
+<td>Sửa dở → xoay màn hình</td>
+<td>Dữ liệu đã sửa không mất</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-EDIT-08</td>
+<td><span class="pill p3">P3</span></td>
+<td>Đóng không lưu</td>
+<td>Sửa dở → <strong>Đóng</strong></td>
+<td>Về danh sách, task giữ dữ liệu cũ</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="311-toggle-trạng-thái-fr-13">3.11 Toggle trạng thái — FR-13</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-TOGGLE-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Open → Done</td>
+<td>Tick checkbox của task open</td>
+<td>Đổi ngay sang done (gạch ngang). Kéo refresh vẫn là done</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-TOGGLE-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Done → Open</td>
+<td>Bỏ tick task done</td>
+<td>Đổi về open, được lưu trên server</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-TOGGLE-03</td>
+<td><span class="pill p3">P3</span></td>
+<td>Chạm liên tục</td>
+<td>Mạng chậm → chạm checkbox nhanh 3–4 lần</td>
+<td>Chỉ 1 request được gửi, trạng thái cuối khớp server</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-TOGGLE-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Rollback khi mất mạng</td>
+<td>Tắt mạng → tick task open</td>
+<td>UI đổi tạm rồi <strong>quay lại open</strong>, có snackbar &quot;Không có kết nối mạng, vui lòng thử lại&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-TOGGLE-05</td>
+<td><span class="pill p2">P2</span></td>
+<td>Task đã bị xóa (404)</td>
+<td>Xóa task trên web → tick task đó trên app</td>
+<td>Snackbar &quot;Task không còn tồn tại&quot;, task biến mất khỏi danh sách</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-TOGGLE-06</td>
+<td><span class="pill p3">P3</span></td>
+<td>Chạm checkbox không mở form Sửa</td>
+<td>Chạm đúng vào checkbox</td>
+<td>Chỉ toggle, <strong>không</strong> mở màn Sửa</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="312-xóa-task-fr-14">3.12 Xóa task — FR-14</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-DEL-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>Hiện dialog khi vuốt</td>
+<td>Vuốt ngang 1 dòng task</td>
+<td>Nền đỏ có chữ &quot;Xóa&quot;, dialog &quot;Xóa task&quot; với nội dung &quot;Bạn có chắc muốn xóa task này? Hành động không thể hoàn tác.&quot;</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-DEL-02</td>
+<td><span class="pill p1">P1</span></td>
+<td>Hủy xóa</td>
+<td>Trong dialog nhấn <strong>Hủy</strong></td>
+<td>Dialog đóng, dòng trở về vị trí cũ, task vẫn còn</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-DEL-03</td>
+<td><span class="pill p1">P1</span></td>
+<td>Xác nhận xóa</td>
+<td>Nhấn <strong>Xóa</strong></td>
+<td>Task biến mất khỏi danh sách. Refresh lại không thấy</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-DEL-04</td>
+<td><span class="pill p2">P2</span></td>
+<td>Task đã bị xóa trước đó (404)</td>
+<td>Xóa task trên web → vuốt xóa task đó trên app → <strong>Xóa</strong></td>
+<td>Snackbar &quot;Task này đã được xóa trước đó&quot;, task biến mất</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-DEL-05</td>
+<td><span class="pill p2">P2</span></td>
+<td>Mất mạng khi xóa</td>
+<td>Tắt mạng → vuốt → <strong>Xóa</strong></td>
+<td>Snackbar lỗi mạng, task <strong>vẫn còn</strong> trong danh sách</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-DEL-06</td>
+<td><span class="pill p3">P3</span></td>
+<td>Vuốt theo cả 2 hướng</td>
+<td>Vuốt trái → phải và phải → trái</td>
+<td>Cả 2 hướng đều mở dialog xác nhận</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="313-ownership-dữ-liệu-cũ-fr-15">3.13 Ownership / dữ liệu cũ — FR-15</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-OWN-01</td>
+<td><span class="pill p1">P1</span></td>
+<td>API chặn truy cập chéo</td>
+<td>Lấy <code>id</code> một task của <code>U2</code>. Bằng phiên của <code>U1</code> gọi <code>PUT</code> và <code>DELETE /api/v1/tasks/&lt;id&gt;</code> (curl/Postman)</td>
+<td>Backend trả 403 hoặc 404, task của <code>U2</code> không bị thay đổi</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-OWN-02</td>
+<td><span class="pill p2">P2</span></td>
+<td>Lỗi 403/404 chỉ báo cục bộ</td>
+<td>Tái hiện 404 bằng TC-TOGGLE-05 / TC-DEL-04</td>
+<td>Chỉ có snackbar, không có màn lỗi toàn trang, vẫn ở danh sách</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-OWN-03</td>
+<td><span class="pill p3">P3</span></td>
+<td>Thông báo 403</td>
+<td>Nếu tái hiện được 403 (ví dụ chỉnh response bằng proxy)</td>
+<td>Snackbar &quot;Bạn không có quyền thực hiện thao tác này&quot;, UI không thay đổi</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="314-hiệu-năng-vòng-đời-app-fr-16-fr-17">3.14 Hiệu năng &amp; vòng đời app — FR-16, FR-17</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>ID</th>
+<th>Ưu tiên</th>
+<th>Kịch bản</th>
+<th>Các bước</th>
+<th>Kết quả mong đợi</th>
+<th>KQ</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-PERF-01</td>
+<td><span class="pill p2">P2</span></td>
+<td>Cuộn 50 task</td>
+<td>Tạo khoảng 50 task (script gọi API) → cuộn nhanh lên/xuống</td>
+<td>Cuộn mượt, không giật rõ rệt</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PERF-02</td>
+<td><span class="pill p2">P2</span></td>
+<td>Background → foreground</td>
+<td>Ở danh sách → nhấn Home → đợi 1 phút → mở lại app</td>
+<td>Danh sách vẫn đúng, không trắng màn hình, không crash</td>
+<td></td>
+</tr>
+<tr>
+<td>TC-PERF-03</td>
+<td><span class="pill p2">P2</span></td>
+<td>Phản hồi khi đang ghi</td>
+<td>Mạng chậm → tạo / sửa / toggle / xóa</td>
+<td>Mỗi thao tác đều có trạng thái đang xử lý (nút loading hoặc item bị khóa)</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="4-điểm-lệch-giữa-app-và-srs-cần-xác-nhận">4. Điểm lệch giữa app và SRS — cần xác nhận</h2>
+<p>Đây là những chỗ code hiện tại làm khác SRS. Cần chốt xem nên <strong>sửa app</strong> hay <strong>cập nhật SRS</strong> trước khi đánh giá Pass/Fail cho các case liên quan.</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>SRS yêu cầu</th>
+<th>App hiện tại</th>
+<th>Case liên quan</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>FR-01: đăng ký xong tự đăng nhập, vào danh sách task</td>
+<td>Phải xác thực email trước, form bị khóa và hiện hướng dẫn (do backend <code>auth-core</code> bắt buộc xác thực email)</td>
+<td>TC-REG-01, 02</td>
+</tr>
+<tr>
+<td>2</td>
+<td>FR-02: mở lại app khi phiên còn hiệu lực thì vào thẳng danh sách task</td>
+<td><code>startDestination = LOGIN</code>, không kiểm tra phiên lúc khởi động</td>
+<td>TC-LOGIN-09</td>
+</tr>
+<tr>
+<td>3</td>
+<td>FR-03: có dialog &quot;Bạn có chắc muốn đăng xuất?&quot;</td>
+<td>Nhấn <strong>Đăng xuất</strong> là thoát ngay</td>
+<td>TC-LOGOUT-01</td>
+</tr>
+<tr>
+<td>4</td>
+<td>FR-05: dùng mã OTP</td>
+<td>Dùng <strong>token</strong> lấy từ email</td>
+<td>TC-PWD-02, 06–08</td>
+</tr>
+<tr>
+<td>5</td>
+<td>FR-05: thông báo &quot;Nếu email tồn tại…&quot; sau khi gửi; &quot;Đặt lại mật khẩu thành công&quot; sau khi reset</td>
+<td>Gửi xong chuyển màn ngay. Reset xong về Login, không thấy thông báo thành công</td>
+<td>TC-PWD-02, 06</td>
+</tr>
+<tr>
+<td>6</td>
+<td>FR-11/FR-12: tiêu đề trống thì có lỗi inline &quot;Tiêu đề không được để trống&quot;</td>
+<td>Nút <strong>Lưu</strong> bị disable nên không thấy lỗi inline</td>
+<td>TC-CREATE-03, 04; TC-EDIT-03</td>
+</tr>
+<tr>
+<td>7</td>
+<td>FR-11/12/14/16: có snackbar báo thành công sau khi tạo / sửa / xóa</td>
+<td>Không thấy thông báo thành công trong code, chỉ có thông báo lỗi</td>
+<td>TC-CREATE-01, TC-EDIT-02, TC-DEL-03</td>
+</tr>
+<tr>
+<td>8</td>
+<td>SRS dùng JWT (<code>Authorization: Bearer</code>)</td>
+<td>Dùng session cookie <code>sid</code> + CSRF (theo <code>auth-core</code>)</td>
+<td>Không ảnh hưởng UI. Cần cập nhật SRS</td>
+</tr>
+</tbody>
+</table>
+</div>
+
+  </article>
+  <nav class="page-toc">
+    <div class="t">Trong trang này</div>
+    <ol>
+      <li><a href="#1-chuẩn-bị-môi-trường">1. Chuẩn bị môi trường</a></li>
+      <li class="lvl3"><a href="#11-tiền-điều-kiện-chung">1.1 Tiền điều kiện chung</a></li>
+      <li class="lvl3"><a href="#12-dữ-liệu-test">1.2 Dữ liệu test</a></li>
+      <li class="lvl3"><a href="#13-cách-giả-lập-tình-huống-đặc-biệt">1.3 Cách giả lập tình huống đặc biệt</a></li>
+      <li class="lvl3"><a href="#14-quy-ước">1.4 Quy ước</a></li>
+      <li><a href="#2-tổng-hợp">2. Tổng hợp</a></li>
+      <li><a href="#3-kịch-bản-chi-tiết">3. Kịch bản chi tiết</a></li>
+      <li class="lvl3"><a href="#31-đăng-ký-fr-01">3.1 Đăng ký — FR-01</a></li>
+      <li class="lvl3"><a href="#32-đăng-nhập-fr-02">3.2 Đăng nhập — FR-02</a></li>
+      <li class="lvl3"><a href="#33-đăng-xuất-fr-03">3.3 Đăng xuất — FR-03</a></li>
+      <li class="lvl3"><a href="#34-phiên-hết-hạn-fr-04">3.4 Phiên hết hạn — FR-04</a></li>
+      <li class="lvl3"><a href="#35-quên-đặt-lại-mật-khẩu-fr-05">3.5 Quên / đặt lại mật khẩu — FR-05</a></li>
+      <li class="lvl3"><a href="#36-danh-sách-task-fr-06-fr-09-fr-10">3.6 Danh sách task — FR-06, FR-09, FR-10</a></li>
+      <li class="lvl3"><a href="#37-lọc-theo-trạng-thái-fr-07-fr-09">3.7 Lọc theo trạng thái — FR-07, FR-09</a></li>
+      <li class="lvl3"><a href="#38-pull-to-refresh-fr-08">3.8 Pull-to-refresh — FR-08</a></li>
+      <li class="lvl3"><a href="#39-tạo-task-fr-11">3.9 Tạo task — FR-11</a></li>
+      <li class="lvl3"><a href="#310-sửa-task-fr-12">3.10 Sửa task — FR-12</a></li>
+      <li class="lvl3"><a href="#311-toggle-trạng-thái-fr-13">3.11 Toggle trạng thái — FR-13</a></li>
+      <li class="lvl3"><a href="#312-xóa-task-fr-14">3.12 Xóa task — FR-14</a></li>
+      <li class="lvl3"><a href="#313-ownership-dữ-liệu-cũ-fr-15">3.13 Ownership / dữ liệu cũ — FR-15</a></li>
+      <li class="lvl3"><a href="#314-hiệu-năng-vòng-đời-app-fr-16-fr-17">3.14 Hiệu năng &amp;amp; vòng đời app — FR-16, FR-17</a></li>
+      <li><a href="#4-điểm-lệch-giữa-app-và-srs-cần-xác-nhận">4. Điểm lệch giữa app và SRS — cần xác nhận</a></li>
+    </ol>
+  </nav>
+</div>
+
+<footer class="doc-footer">
+  <span>docs/Test_Scenarios_ToDo_Android.md</span>
+  <span><a href="index.html">&larr; Về trang tổng quan</a></span>
+</footer>
+</body>
+</html>

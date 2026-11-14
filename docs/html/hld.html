@@ -1,0 +1,782 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>High-Level Design: Ứng dụng Android Quản lý Task/To-Do (CRUD) — Full-Stack · ToDo Android Docs</title>
+<link rel="stylesheet" href="assets/doc.css">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:"neutral"});</script>
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand"><span class="mark">📚</span> ToDo Android · Docs</div>
+  <nav class="topnav">
+    <a href="index.html">Tổng quan</a>
+    <a href="readme.html">README</a>
+    <a href="srs.html">SRS</a>
+    <a href="hld.html" class="active">HLD</a>
+    <a href="lld.html">LLD</a>
+    <a href="api-contract.html">API Contract</a>
+    <a href="admin-task-statistics.html">Admin Thống kê</a>
+    <a href="test-scenarios.html">Kịch bản Test</a>
+  </nav>
+</div></div>
+
+<div class="shell">
+  <article>
+    <div class="doc-head">
+      <div class="eyebrow">HLD · Kiến trúc tổng thể</div>
+      <h1>High-Level Design: Ứng dụng Android Quản lý Task/To-Do (CRUD) — Full-Stack</h1>
+      <div class="doc-meta"><span>Nguồn: <code>docs\HLD_ToDo_Android.md</code></span><span>Cập nhật: 2026-10-14</span></div>
+    </div>
+    
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Dự án</strong></td>
+<td>Full-Stack Assessment — Task 2: Task/To-Do CRUD Management</td>
+</tr>
+<tr>
+<td><strong>Phiên bản</strong></td>
+<td>1.0</td>
+</tr>
+<tr>
+<td><strong>Ngày tạo</strong></td>
+<td>2026-10-14</td>
+</tr>
+<tr>
+<td><strong>Nguồn yêu cầu</strong></td>
+<td><code>docs/SRS_ToDo_Android.md</code> (v1.0)</td>
+</tr>
+<tr>
+<td><strong>Trạng thái</strong></td>
+<td>Draft — chờ review stakeholder trước khi chuyển cho <code>low-level-designer</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="phương-án-kiến-trúc-đã-chốt">Phương án kiến trúc đã chốt</h2>
+<ul>
+<li><strong>Backend</strong>: Node.js + Express + TypeScript, PostgreSQL, Prisma ORM, kiến trúc
+layer Controller → Service → Prisma/Repository.</li>
+<li><strong>Android</strong>: Jetpack Compose (không XML), Clean Architecture 3 layer
+(Presentation / Domain / Data), DI bằng Hilt, hoạt động <strong>online-only</strong>
+(không Room/cache Task, chỉ lưu JWT cục bộ).</li>
+<li><strong>Nguồn chốt</strong>: Người dùng tự chốt trực tiếp, chỉ định thư viện cụ thể cho
+từng phần. Các chỉ định thư viện này được giữ nguyên, không tự đổi.</li>
+</ul>
+<h2 id="bối-cảnh-hệ-thống-hiện-tại-đã-khảo-sát">Bối cảnh hệ thống hiện tại (đã khảo sát)</h2>
+<ul>
+<li>Module/service liên quan đã tồn tại: <strong>Không có.</strong> Repo chỉ chứa
+<code>Task2_Task_ToDo_CRUD.pdf</code> và <code>docs/SRS_ToDo_Android.md</code>. Toàn bộ thành
+phần Backend và Android trong tài liệu này là <strong>MỚI</strong>, cần xây từ đầu.</li>
+<li>Pattern giao tiếp hiện có: chưa có (chưa triển khai code nào).</li>
+<li>Hạ tầng deployment hiện có: chưa có Dockerfile/k8s manifest/config cloud
+nào trong repo → mọi mô tả deployment ở mục dưới ghi rõ &quot;chưa xác định&quot;
+khi không có cơ sở suy luận.</li>
+</ul>
+<hr />
+<h2 id="1-sơ-đồ-thành-phần">1. Sơ đồ thành phần</h2>
+<h3 id="11-sơ-đồ-tổng-thể">1.1 Sơ đồ tổng thể</h3>
+<pre class="mermaid">graph TD
+  subgraph Android[&quot;Android App - MỚI - Clean Architecture&quot;]
+    subgraph P[&quot;Presentation Layer&quot;]
+      UI[&quot;Compose Screens: Login, Register, ForgotPassword, ResetPassword, TaskList, CreateTask, EditTask&quot;]
+      VM[&quot;ViewModels: AuthViewModel, TaskListViewModel, TaskFormViewModel&quot;]
+      NAV[&quot;NavHost - Navigation Compose&quot;]
+    end
+    subgraph D[&quot;Domain Layer - Kotlin thuan, khong phu thuoc Android framework&quot;]
+      UC[&quot;UseCases: Register, Login, Logout, ForgotPassword, ResetPassword, GetTasks, CreateTask, UpdateTask, ToggleTask, DeleteTask&quot;]
+      ENT[&quot;Entities: Task, Session/User&quot;]
+      RIF[&quot;Repository Interfaces: AuthRepository, TaskRepository&quot;]
+    end
+    subgraph DT[&quot;Data Layer&quot;]
+      RIMPL[&quot;Repository Impl: AuthRepositoryImpl, TaskRepositoryImpl&quot;]
+      REMOTE[&quot;Remote DataSource: AuthApiService, TaskApiService - Retrofit/OkHttp&quot;]
+      LOCAL[&quot;Local DataSource: TokenLocalDataSource - DataStore + Keystore&quot;]
+      ITC[&quot;OkHttp Interceptor/Authenticator - phat hien 401 toan cuc&quot;]
+      BUS[&quot;SessionEventBus - SharedFlow, event mot lan&quot;]
+    end
+    NAV --&gt; UI
+    UI --&gt; VM
+    VM --&gt; UC
+    UC --&gt; RIF
+    RIF -.implemented by.-&gt; RIMPL
+    RIMPL --&gt; REMOTE
+    RIMPL --&gt; LOCAL
+    REMOTE --&gt; ITC
+    ITC --&gt; LOCAL
+    ITC --&gt; BUS
+    BUS -.observed by.-&gt; VM
+  end
+
+  subgraph Backend[&quot;Backend REST API - MỚI - Node.js + Express + TypeScript&quot;]
+    MW[&quot;Middleware: authMiddleware (jsonwebtoken), validationMiddleware (Zod), errorHandler&quot;]
+    CTRL[&quot;Controllers: AuthController, TaskController&quot;]
+    SVC[&quot;Services: AuthService (bcrypt), TaskService, EmailService&quot;]
+    PR[&quot;Prisma Client (Data access layer)&quot;]
+    MW --&gt; CTRL --&gt; SVC --&gt; PR
+  end
+
+  DB[(&quot;PostgreSQL&quot;)]
+  MAIL[[&quot;External SMTP / Email Provider&quot;]]
+
+  REMOTE --&gt;|&quot;HTTPS REST JSON, dong bo (suspend), header Authorization Bearer&quot;| MW
+  PR --&gt; DB
+  SVC --&gt;|&quot;gui OTP email, qua SMTP&quot;| MAIL
+</pre>
+<h3 id="12-ghi-chú-về-biên-giới">1.2 Ghi chú về biên giới</h3>
+<ul>
+<li>Android App và Backend API là hai hệ thống/tiến trình độc lập, giao tiếp
+duy nhất qua REST API (mục 6 trong SRS) — không có kênh giao tiếp khác
+(không gRPC, không shared DB).</li>
+<li><code>SessionEventBus</code> là một class Kotlin thuần (không phụ thuộc Android
+framework) đặt ở một module &quot;core&quot;/dùng chung, được cả tầng Data
+(Interceptor) và tầng Presentation (ViewModel/NavHost quan sát) tiêm vào
+qua Hilt dưới dạng Singleton — đây là cách cầu nối sự kiện 401 toàn cục mà
+không làm Domain phụ thuộc vào OkHttp hay Presentation phụ thuộc trực tiếp
+vào Data.</li>
+<li>Backend không có tầng &quot;Repository&quot; riêng biệt tách khỏi Service (Prisma
+Client đóng vai trò data access trực tiếp trong Service) — đây là lựa
+chọn hợp lý với Prisma (đã có type-safe query builder), không cần thêm
+abstraction Repository thủ công ở mức HLD; nếu <code>low-level-designer</code> thấy
+cần tách Repository riêng để dễ test/mocking, đó là quyết định LLD, không
+mâu thuẫn với HLD này.</li>
+</ul>
+<hr />
+<h2 id="2-trách-nhiệm-từng-thành-phần-kèm-đề-xuất-thư-viện">2. Trách nhiệm từng thành phần (kèm đề xuất thư viện)</h2>
+<h3 id="android-presentation-layer-mới">Android — Presentation Layer (MỚI)</h3>
+<ul>
+<li><strong>Làm</strong>: Hiển thị UI bằng Jetpack Compose cho 7 màn hình (Login, Register,
+ForgotPassword, ResetPassword, TaskList, CreateTask, EditTask); giữ và
+expose UI state (loading/success/error/empty) qua <code>StateFlow</code> từ
+ViewModel (<code>androidx.lifecycle:lifecycle-viewmodel-compose</code>); điều hướng
+giữa màn hình bằng <strong>Navigation Compose</strong>; nhận sự kiện 401 toàn cục từ
+<code>SessionEventBus</code> để điều hướng về Login.</li>
+<li><strong>Không làm</strong>: Không gọi trực tiếp Retrofit/API; không chứa business
+logic (validate nghiệp vụ, quyết định gọi UseCase nào) — việc đó thuộc
+ViewModel gọi xuống Domain.</li>
+<li><strong>Thư viện</strong>: Jetpack Compose, <code>androidx.lifecycle:lifecycle-viewmodel-ktx</code>,
+Kotlin Coroutines (<code>StateFlow</code>/<code>SharedFlow</code>), Navigation Compose
+(<code>androidx.navigation:navigation-compose</code>).</li>
+<li><strong>Biên giới</strong>: Gọi xuống Domain Layer (UseCase) qua ViewModel; không giao
+tiếp trực tiếp với Data Layer.</li>
+</ul>
+<h3 id="android-domain-layer-mới-kotlin-thuần">Android — Domain Layer (MỚI, Kotlin thuần)</h3>
+<ul>
+<li><strong>Làm</strong>: Chứa UseCase (mỗi UseCase = một hành vi nghiệp vụ: đăng ký, đăng
+nhập, lấy danh sách task có filter, tạo/sửa/toggle/xóa task...), Entity
+(<code>Task</code>, <code>Session</code>/<code>User</code>) và Repository interface (<code>AuthRepository</code>,
+<code>TaskRepository</code>). Validate nghiệp vụ phía client (title không rỗng, email
+format, password rule) có thể đặt ở UseCase hoặc chia sẻ với Presentation
+tùy LLD quyết định.</li>
+<li><strong>Không làm</strong>: Không phụ thuộc Android framework (không import
+<code>android.*</code>), không biết Retrofit/DataStore là gì — chỉ biết interface.
+Không bao giờ chứa code UI hoặc network.</li>
+<li><strong>Thư viện</strong>: Kotlin thuần (coroutines core, không cần Android
+dependency) — mục đích để unit test nhanh không cần Android instrumented.</li>
+<li><strong>Biên giới</strong>: Được gọi bởi Presentation; gọi xuống Data Layer qua
+Repository interface (không biết implementation cụ thể).</li>
+</ul>
+<h3 id="android-data-layer-mới">Android — Data Layer (MỚI)</h3>
+<ul>
+<li><strong>Làm</strong>: Hiện thực Repository interface; gọi network qua <strong>Retrofit +
+OkHttp</strong>; parse JSON; đọc/ghi JWT token cục bộ; gắn header Authorization
+tự động cho mọi request <code>/tasks/*</code>; phát hiện <code>401</code> toàn cục và emit sự
+kiện qua <code>SessionEventBus</code>.</li>
+<li><strong>Không làm</strong>: Không chứa UI state, không quyết định điều hướng màn hình
+(chỉ emit sự kiện, Presentation quyết định điều hướng cụ thể).</li>
+<li><strong>Thư viện cụ thể</strong>:
+<ul>
+<li>Networking: <strong>Retrofit2 + OkHttp3</strong>, interceptor logging riêng cho môi
+trường dev.</li>
+<li>JSON parsing: <strong>kotlinx.serialization</strong> (đề xuất chính) — lý do: tích
+hợp sẵn converter chính thức cho Retrofit
+(<code>retrofit2-kotlinx-serialization-converter</code>), không cần reflection
+(code-gen tại compile-time qua Kotlin compiler plugin), nhẹ, đồng bộ
+tốt với <code>data class</code>/<code>sealed class</code> Kotlin thuần ở Domain. <strong>Phương án
+thay thế hợp lệ</strong>: Moshi (+ <code>moshi-kotlin-codegen</code> để tránh reflection)
+— ưu điểm sinh thái lâu đời hơn, nhiều adapter custom có sẵn; nhược
+điểm cần thêm annotation <code>@JsonClass</code> trên model. Mặc định chọn
+kotlinx.serialization trừ khi team có lý do riêng dùng Moshi.</li>
+<li>Token local storage: <strong>Jetpack DataStore (Preferences)</strong> kết hợp
+<strong><code>androidx.security:security-crypto</code> (EncryptedSharedPreferences/
+Android Keystore)</strong> để JWT không lưu plaintext trên thiết bị (đáp ứng
+NFR-3 trong SRS).</li>
+<li>Phát hiện 401 toàn cục: <strong>OkHttp <code>Interceptor</code></strong> (hoặc <code>Authenticator</code>
+nếu cần logic refresh-token trong tương lai — SRS chưa có refresh
+token, nên dùng Interceptor đơn giản là đủ ở v1).</li>
+</ul>
+</li>
+<li><strong>Biên giới</strong>: Hiện thực interface từ Domain; giao tiếp ra ngoài biên giới
+Android App qua HTTPS tới Backend API.</li>
+</ul>
+<h3 id="android-dependency-injection-mới">Android — Dependency Injection (MỚI)</h3>
+<ul>
+<li><strong>Làm</strong>: Cung cấp instance Retrofit/OkHttpClient, DataStore, Repository
+impl, UseCase, ViewModel qua <strong>Hilt</strong> (<code>@HiltAndroidApp</code>,
+<code>@HiltViewModel</code>, các <code>@Module</code> cho Network/DataStore/Repository).</li>
+<li><strong>Không làm</strong>: Không chứa business logic.</li>
+<li><strong>Thư viện</strong>: Hilt (<code>com.google.dagger:hilt-android</code>).</li>
+</ul>
+<h3 id="android-testing-mới">Android — Testing (MỚI)</h3>
+<ul>
+<li><strong>Thư viện đề xuất</strong>: <strong>JUnit4</strong> (đề xuất mặc định thay vì JUnit5) — lý
+do: hệ sinh thái AndroidX Test và Compose UI Testing
+(<code>androidx.compose.ui.test</code>) hỗ trợ JUnit4 Rule-based testing là first-
+class; JUnit5 (<code>android-junit5</code> plugin) khả dụng nhưng cần cấu hình thêm
+cho instrumented test, không cần thiết cho scope dự án này. <strong>MockK</strong> cho
+mock Kotlin (ViewModel, UseCase, Repository). <strong>Turbine</strong> để test luồng
+<code>StateFlow</code>/<code>SharedFlow</code> (đặc biệt <code>SessionEventBus</code>). <strong>Compose UI
+Testing</strong> (<code>createComposeRule</code>) cho test giao diện các luồng chính.</li>
+<li><strong>Biên giới</strong>: Unit test Domain/Presentation không cần thiết bị thật
+(Domain Kotlin thuần, ViewModel dùng fake Repository); Compose UI Test
+cần instrumented/Robolectric tùy LLD quyết định.</li>
+</ul>
+<h3 id="backend-web-framework-mới">Backend — Web framework (MỚI)</h3>
+<ul>
+<li><strong>Làm</strong>: Định nghĩa route <code>/auth/*</code> và <code>/tasks/*</code>, áp middleware xác thực
+cho toàn bộ <code>/tasks/*</code>, điều phối request tới Controller tương ứng, trả
+response đúng status code theo API Contract (mục 6 SRS).</li>
+<li><strong>Không làm</strong>: Không chứa business logic trực tiếp trong route handler —
+route handler (Controller) chỉ gọi Service.</li>
+<li><strong>Thư viện</strong>: Express + TypeScript, cấu trúc thư mục đề xuất
+<code>src/routes</code>, <code>src/controllers</code>, <code>src/services</code>, <code>src/middlewares</code>.</li>
+</ul>
+<h3 id="backend-ormdatabase-mới">Backend — ORM/Database (MỚI)</h3>
+<ul>
+<li><strong>Làm</strong>: Prisma định nghĩa schema <code>User</code>/<code>Task</code> đúng Data Model mục 5
+SRS (bao gồm index <code>ownerId</code>, enum <code>status</code> open/done, <code>createdAt</code>/
+<code>updatedAt</code> tự động); chạy migration; cung cấp Prisma Client cho Service
+truy vấn có type-safe và tự động enforce <code>ownerId</code> trong mọi query/update/
+delete liên quan Task.</li>
+<li><strong>Không làm</strong>: Không raw SQL trừ khi có lý do đặc biệt (không nêu trong
+SRS).</li>
+<li><strong>Thư viện</strong>: <code>prisma</code> + <code>@prisma/client</code>, PostgreSQL driver đi kèm.</li>
+</ul>
+<h3 id="backend-auth-mới">Backend — Auth (MỚI)</h3>
+<ul>
+<li><strong>Làm</strong>: <code>AuthService</code> sign/verify JWT bằng <strong><code>jsonwebtoken</code></strong>; hash mật
+khẩu bằng <strong><code>bcrypt</code></strong>; <code>authMiddleware</code> verify JWT từ header
+<code>Authorization: Bearer &lt;token&gt;</code> cho mọi route <code>/tasks/*</code>, gắn <code>userId</code>
+vào request context để <code>TaskService</code> enforce ownership; trả <code>401</code> khi
+token không hợp lệ/hết hạn (đáp ứng FR-04).</li>
+<li><strong>Không làm</strong>: Không tự quản lý session server-side (stateless JWT, không
+session store) — phù hợp với SRS không yêu cầu refresh token.</li>
+<li><strong>Thư viện</strong>: <code>jsonwebtoken</code>, <code>bcrypt</code> (hoặc <code>bcryptjs</code> nếu cần thuần JS
+không cần native build — quyết định LLD).</li>
+</ul>
+<h3 id="backend-validation-mới">Backend — Validation (MỚI)</h3>
+<ul>
+<li><strong>Làm</strong>: Validate request body (email format, password rule ≥8 ký tự có
+chữ+số, <code>title</code> non-empty/trimmed...) bằng <strong>Zod</strong> trước khi vào Service,
+trả <code>400</code> kèm message rõ ràng khi fail.</li>
+<li><strong>Lý do chọn Zod</strong> (đã là lựa chọn mặc định theo chỉ định kiến trúc):
+TypeScript-first, suy ra type từ schema (<code>z.infer</code>) giảm trùng lặp định
+nghĩa type giữa validation và DTO, cú pháp khai báo rõ ràng, tích hợp tốt
+với Express middleware pattern.</li>
+<li><strong>Không làm</strong>: Không validate business rule cần truy DB (ví dụ email đã
+tồn tại) — việc đó ở Service (kiểm tra qua Prisma, trả <code>409</code>).</li>
+</ul>
+<h3 id="backend-email-mới-phục-vụ-fr-05">Backend — Email (MỚI, phục vụ FR-05)</h3>
+<ul>
+<li><strong>Làm</strong>: <code>EmailService</code> gửi OTP đặt lại mật khẩu qua email. Đề xuất
+<strong>Nodemailer</strong> với transport SMTP cấu hình qua biến môi trường.
+<ul>
+<li><strong>Môi trường dev</strong>: dùng SMTP test (ví dụ Mailtrap) hoặc fallback
+<code>console.log</code> nội dung email để không phụ thuộc dịch vụ ngoài khi phát
+triển/test cục bộ.</li>
+<li><strong>Môi trường production</strong>: cấu hình SMTP thực hoặc dịch vụ transactional
+email (ví dụ SendGrid/SES — nhà cung cấp cụ thể <strong>chưa xác định</strong>, cần
+stakeholder/đội vận hành chốt khi lên production thật; ngoài phạm vi
+bài tập học thuật/demo).</li>
+</ul>
+</li>
+<li><strong>Không làm</strong>: Không tự quản lý template email phức tạp (ngoài phạm vi
+SRS, chỉ cần nội dung chứa OTP).</li>
+<li>Cơ chế lưu OTP (bảng riêng, field trong <code>User</code>, TTL cụ thể) <strong>chưa chốt ở
+mức HLD</strong> — để <code>low-level-designer</code> quyết định, chỉ cần đảm bảo
+<code>AuthService</code> có nơi lưu + kiểm tra hết hạn OTP khi <code>reset-password</code>.</li>
+</ul>
+<h3 id="backend-testing-mới">Backend — Testing (MỚI)</h3>
+<ul>
+<li><strong>Thư viện</strong>: <strong>Jest + Supertest</strong> cho unit/integration test API, bao
+phủ đúng 5 Unit Test Scenario (Given/When/Then, mục 7.1 SRS) và các case
+Auth (register/login/forgot/reset) tương ứng FR-01/02/05.</li>
+</ul>
+<hr />
+<h2 id="3-giao-tiếp-luồng-dữ-liệu">3. Giao tiếp &amp; luồng dữ liệu</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Từ</th>
+<th>Đến</th>
+<th>Đồng bộ/Bất đồng bộ</th>
+<th>Kênh</th>
+<th>Ý nghĩa giao tiếp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Compose UI</td>
+<td>ViewModel</td>
+<td>Đồng bộ (in-process)</td>
+<td>Kotlin function call</td>
+<td>UI gửi hành động người dùng (nhấn nút, nhập form)</td>
+</tr>
+<tr>
+<td>ViewModel</td>
+<td>UseCase (Domain)</td>
+<td>Bất đồng bộ (coroutine suspend)</td>
+<td>In-process call</td>
+<td>Yêu cầu thực hiện một hành vi nghiệp vụ (đăng ký/đăng nhập/CRUD task)</td>
+</tr>
+<tr>
+<td>UseCase</td>
+<td>Repository interface</td>
+<td>Bất đồng bộ (suspend)</td>
+<td>In-process call</td>
+<td>Domain yêu cầu Data layer thực hiện thao tác dữ liệu, không biết nguồn dữ liệu cụ thể</td>
+</tr>
+<tr>
+<td>RepositoryImpl</td>
+<td>AuthApiService / TaskApiService</td>
+<td>Bất đồng bộ (suspend, Retrofit)</td>
+<td>HTTPS REST/JSON</td>
+<td>Gọi API thực tế tới Backend</td>
+</tr>
+<tr>
+<td>RepositoryImpl</td>
+<td>TokenLocalDataSource</td>
+<td>Bất đồng bộ (suspend, DataStore)</td>
+<td>In-process, đĩa cục bộ</td>
+<td>Đọc/ghi JWT token trên thiết bị</td>
+</tr>
+<tr>
+<td>OkHttp Interceptor</td>
+<td>SessionEventBus</td>
+<td>Bất đồng bộ (emit SharedFlow)</td>
+<td>In-process event</td>
+<td>Thông báo toàn cục &quot;phiên hết hạn&quot; khi phát hiện <code>401</code> ở bất kỳ request nào</td>
+</tr>
+<tr>
+<td>SessionEventBus</td>
+<td>ViewModel/NavHost (Presentation)</td>
+<td>Bất đồng bộ (collect SharedFlow)</td>
+<td>In-process event (one-shot)</td>
+<td>Trigger hiển thị thông báo + điều hướng về Login</td>
+</tr>
+<tr>
+<td>Android App (Retrofit)</td>
+<td>Backend API (Express)</td>
+<td>Đồng bộ theo từng request (client chờ response), kênh HTTPS</td>
+<td>REST/JSON qua internet/LAN</td>
+<td>Toàn bộ nghiệp vụ Auth + Task CRUD, theo đúng API Contract SRS mục 6</td>
+</tr>
+<tr>
+<td>Express Middleware</td>
+<td>Controller → Service</td>
+<td>Đồng bộ (in-process)</td>
+<td>Function call</td>
+<td>Điều phối request đã xác thực/validate tới business logic</td>
+</tr>
+<tr>
+<td>AuthService</td>
+<td>PostgreSQL (qua Prisma)</td>
+<td>Đồng bộ (await)</td>
+<td>SQL qua Prisma Client</td>
+<td>Đọc/ghi <code>User</code> (tạo account, kiểm tra credential, lưu OTP, đổi password hash)</td>
+</tr>
+<tr>
+<td>TaskService</td>
+<td>PostgreSQL (qua Prisma)</td>
+<td>Đồng bộ (await)</td>
+<td>SQL qua Prisma Client</td>
+<td>CRUD <code>Task</code> có điều kiện <code>ownerId</code> enforce ownership</td>
+</tr>
+<tr>
+<td>EmailService</td>
+<td>SMTP/Email Provider</td>
+<td>Bất đồng bộ (await gửi, không chờ người nhận đọc)</td>
+<td>SMTP</td>
+<td>Gửi email chứa OTP đặt lại mật khẩu</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="31-luồng-chính-1-đăng-ký-đăng-nhập-lưu-token-gọi-task-api">3.1 Luồng chính 1: Đăng ký → Đăng nhập → lưu token → gọi Task API</h3>
+<ol>
+<li><code>RegisterScreen</code> → <code>AuthViewModel</code>: người dùng nhập email/password/xác
+nhận password, nhấn Đăng ký.</li>
+<li><code>AuthViewModel</code> → <code>RegisterUseCase</code> → <code>AuthRepository.register()</code> →
+<code>AuthRepositoryImpl</code> → <code>AuthApiService</code> → <code>POST /auth/register</code>.</li>
+<li>Backend: <code>validationMiddleware</code> (Zod) → <code>AuthController</code> →
+<code>AuthService.register()</code> (bcrypt hash password) → Prisma tạo <code>User</code> →
+trả <code>201</code>.</li>
+<li><strong>Điểm cần làm rõ</strong> (xem mục Open Questions): API Contract SRS mục 6.2
+không ghi <code>/auth/register</code> trả JWT, nhưng AC FR-01 yêu cầu &quot;tự động đăng
+nhập&quot;. Giả định mức HLD: sau khi <code>register</code> trả <code>201</code> thành công, client
+tự động gọi tiếp <code>POST /auth/login</code> với cùng credential để lấy JWT, tạo
+cảm giác &quot;tự động đăng nhập&quot; phía người dùng mà không cần nhập lại.</li>
+<li><code>AuthRepositoryImpl</code> nhận JWT từ response login → <code>TokenLocalDataSource</code>
+lưu token vào DataStore + Keystore-encrypted storage.</li>
+<li><code>AuthViewModel</code> cập nhật state thành công → <code>NavHost</code> điều hướng tới
+<code>TaskListScreen</code>.</li>
+<li><code>TaskListViewModel</code> → <code>GetTasksUseCase</code> → <code>TaskRepositoryImpl</code> →
+<code>TaskApiService.getTasks()</code> — OkHttp Interceptor tự động đọc token từ
+<code>TokenLocalDataSource</code> và gắn header <code>Authorization: Bearer &lt;token&gt;</code> →
+<code>GET /tasks</code>.</li>
+<li>Backend: <code>authMiddleware</code> verify JWT → <code>TaskController</code> →
+<code>TaskService.listTasks(ownerId)</code> → Prisma query <code>Task WHERE ownerId = ?</code>
+→ trả <code>200</code> + danh sách.</li>
+<li>Response map về <code>Task</code> Entity ở Data layer → qua UseCase → ViewModel cập
+nhật <code>StateFlow</code> → Compose UI render danh sách.</li>
+</ol>
+<h3 id="32-luồng-chính-2-quên-mật-khẩu-otp-qua-email">3.2 Luồng chính 2: Quên mật khẩu (OTP qua email)</h3>
+<ol>
+<li><code>ForgotPasswordScreen</code> nhập email → <code>ForgotPasswordUseCase</code> →
+<code>AuthRepository.forgotPassword()</code> → <code>POST /auth/forgot-password</code>.</li>
+<li>Backend: validate email format (Zod) → <code>AuthService.forgotPassword()</code> —
+sinh OTP + hạn dùng (cơ chế lưu cụ thể: chưa chốt ở HLD, để LLD quyết
+định) → <code>EmailService</code> gửi OTP qua SMTP (Nodemailer) → trả response
+trung lập (theo khuyến nghị bảo mật SRS mục 6.2 — xem Open Questions về
+mã lỗi <code>404</code> vs <code>200</code>).</li>
+<li>UI hiển thị thông báo trung lập → điều hướng <code>ResetPasswordScreen</code>.</li>
+<li>Người dùng nhập OTP + mật khẩu mới + xác nhận → <code>ResetPasswordUseCase</code> →
+<code>POST /auth/reset-password</code>.</li>
+<li>Backend: validate (Zod) → <code>AuthService.resetPassword()</code> — verify OTP +
+hạn dùng, nếu sai/hết hạn trả <code>400</code> → nếu hợp lệ, bcrypt hash mật khẩu
+mới → Prisma update <code>User.passwordHash</code> → trả <code>200</code>.</li>
+<li>UI hiển thị &quot;Đặt lại mật khẩu thành công&quot; → điều hướng về <code>LoginScreen</code>.</li>
+</ol>
+<h3 id="33-luồng-chính-3-crud-task-end-to-end-ánh-xạ-lỗi">3.3 Luồng chính 3: CRUD Task (end-to-end + ánh xạ lỗi)</h3>
+<p><strong>Create</strong>: <code>CreateTaskScreen</code> → validate client (title non-empty/trimmed,
+chống double-submit bằng disable nút khi đang gửi) → <code>CreateTaskUseCase</code> →
+<code>TaskRepositoryImpl</code> → <code>POST /tasks</code> → <code>authMiddleware</code> → <code>TaskController</code> →
+<code>TaskService.create()</code> → Prisma insert (status mặc định <code>open</code>) → <code>201</code> →
+UI đóng màn hình, quay về TaskList, task mới hiển thị kèm toast thành công.</p>
+<p><strong>List + Filter</strong>: <code>TaskListScreen</code> (FilterChip All/Open/Done) →
+<code>GetTasksUseCase(status?)</code> → <code>GET /tasks?status=</code> → <code>TaskService.list()</code> →
+Prisma query có điều kiện status → trả <code>200</code> → UI cập nhật danh sách, giữ
+filter khi pull-to-refresh.</p>
+<p><strong>Update (sửa title/description)</strong>: <code>EditTaskScreen</code> → <code>UpdateTaskUseCase</code> →
+<code>PUT /tasks/:id</code> → <code>authMiddleware</code> → <code>TaskService.update()</code> kiểm tra
+<code>ownerId</code> → thành công <code>200</code>; nếu task không tồn tại/đã xóa → <code>404</code>; nếu
+không phải chủ sở hữu (trường hợp bất thường) → <code>403</code>.</p>
+<p><strong>Toggle open/done</strong>: checkbox → optimistic update UI ngay (theo quyết định
+đã chốt ở SRS 10.1) → <code>ToggleTaskUseCase</code> → <code>PUT /tasks/:id</code> → thành công
+giữ UI; lỗi (mạng/<code>404</code>/khác) → rollback UI về trạng thái trước toggle.</p>
+<p><strong>Delete</strong>: swipe-to-delete + dialog xác nhận → <code>DeleteTaskUseCase</code> →
+<code>DELETE /tasks/:id</code> — <strong>không</strong> xóa UI trước khi server xác nhận (theo
+nguyên tắc online-only, SRS 10.1) → thành công <code>204</code> → task biến mất khỏi
+UI; <code>404</code> (đã bị xóa nơi khác) → thông báo phù hợp + đảm bảo task biến mất
+khỏi UI hiện tại.</p>
+<p><strong>Ánh xạ status code → UI state</strong> (áp dụng chung cho mọi thao tác ghi):</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Status code</th>
+<th>Ý nghĩa</th>
+<th>Hành vi UI (ở mức ý nghĩa)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>400</code></td>
+<td>Validate fail phía server dù client đã validate</td>
+<td>Hiển thị lỗi inline trên form, giữ dữ liệu đã nhập</td>
+</tr>
+<tr>
+<td><code>401</code></td>
+<td>Token hết hạn/không hợp lệ</td>
+<td>Xem luồng 3.4 — logout toàn cục + điều hướng Login</td>
+</tr>
+<tr>
+<td><code>403</code></td>
+<td>Không có quyền (trường hợp bất thường)</td>
+<td>Toast/snackbar &quot;Bạn không có quyền thực hiện thao tác này&quot;, không đổi UI</td>
+</tr>
+<tr>
+<td><code>404</code></td>
+<td>Task không còn tồn tại (dữ liệu lỗi thời)</td>
+<td>Toast &quot;Task này không còn tồn tại&quot;, loại bỏ task khỏi danh sách</td>
+</tr>
+<tr>
+<td>Lỗi mạng/timeout/<code>500</code></td>
+<td>Sự cố hạ tầng</td>
+<td>Thông báo lỗi mạng chung, giữ nguyên dữ liệu/UI, cho phép thử lại</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="34-luồng-chính-4-xử-lý-token-hết-hạn-401-toàn-cục">3.4 Luồng chính 4: Xử lý token hết hạn (401 toàn cục)</h3>
+<ol>
+<li>Bất kỳ request tới <code>/tasks/*</code> (hoặc <code>/auth/*</code> yêu cầu token nếu có) trả
+về <code>401</code>.</li>
+<li><strong>OkHttp Interceptor</strong> (đặt trong Data layer, áp dụng cho OkHttpClient
+dùng chung cho mọi <code>ApiService</code>) phát hiện response code <code>401</code> ở mức
+toàn cục — không cần mỗi UseCase tự kiểm tra riêng lẻ.</li>
+<li>Interceptor gọi <code>TokenLocalDataSource.clearToken()</code> xóa JWT khỏi
+DataStore/Keystore.</li>
+<li>Interceptor emit sự kiện (ví dụ <code>SessionExpired</code>) qua <code>SessionEventBus</code>
+(SharedFlow, cấu hình &quot;one-shot&quot; để tránh phát lại khi có observer mới
+subscribe).</li>
+<li>Một observer ở tầng Presentation cấp cao (ví dụ ViewModel gắn với
+<code>NavHost</code> gốc, hoặc một <code>AppViewModel</code> riêng) collect <code>SessionEventBus</code>,
+hiển thị thông báo &quot;Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại&quot;,
+gọi <code>NavController.navigate(Login)</code> kèm <code>popUpTo</code> để xóa toàn bộ
+backstack (đáp ứng AC FR-04 &quot;nhấn Back không quay lại được&quot;).</li>
+<li>Nếu đang ở <code>CreateTaskScreen</code>/<code>EditTaskScreen</code> với dữ liệu chưa lưu →
+theo FR-04, hiển thị thêm cảnh báo dữ liệu chưa lưu sẽ mất trước khi điều
+hướng (chấp nhận mất dữ liệu, không cần cơ chế khôi phục — đã chốt trong
+SRS).</li>
+</ol>
+<hr />
+<h2 id="4-deployment-view-tổng-quan">4. Deployment view (tổng quan)</h2>
+<blockquote>
+<p>Giả định rõ: đây là bài tập học thuật/demo, không thiết kế hạ tầng cloud
+production phức tạp. Mọi chi tiết hạ tầng cụ thể (nhà cung cấp cloud,
+auto-scaling, CDN...) đều <strong>chưa xác định</strong> vì repo chưa có bất kỳ
+Dockerfile/k8s manifest/config cloud nào để suy luận.</p>
+</blockquote>
+<ul>
+<li><strong>Android App</strong>: chạy trên thiết bị Android thật hoặc emulator (APK cài
+trực tiếp) — client-side, không có khái niệm &quot;deploy server&quot; cho phần
+này.</li>
+<li><strong>Backend API (Node.js + Express)</strong>: chạy như 1 server/process duy nhất
+(ví dụ 1 máy/VM/container chạy <code>node</code> process) — <strong>chưa xác định</strong> có
+containerize bằng Docker hay chạy trực tiếp, vì repo chưa có <code>Dockerfile</code>.
+Giả định hợp lý cho mục đích demo: 1 instance duy nhất, không cần load
+balancer/nhiều replica.</li>
+<li><strong>PostgreSQL</strong>: 1 instance riêng biệt (có thể cùng máy với Backend ở môi
+trường dev, hoặc managed service ở production) — nhà cung cấp cụ thể
+<strong>chưa xác định — cần người dùng/đội vận hành xác nhận</strong>.</li>
+<li><strong>SMTP/Email Provider</strong>: môi trường dev dùng SMTP test (Mailtrap) hoặc
+console log; môi trường production dùng SMTP/dịch vụ email thực — nhà
+cung cấp <strong>chưa xác định</strong>.</li>
+<li><strong>Kênh giao tiếp Android ↔ Backend</strong>: qua HTTPS. Với emulator/dev local,
+có thể là <code>http://10.0.2.2:&lt;port&gt;</code> hoặc LAN; với thiết bị thật/production
+cần domain + chứng chỉ TLS hợp lệ — cấu hình domain/TLS cụ thể <strong>chưa xác
+định</strong>.</li>
+</ul>
+<pre class="mermaid">graph LR
+  DEV[&quot;Thiet bi Android thuc / Emulator&quot;] --&gt;|&quot;HTTPS&quot;| SRV[&quot;1 Node.js process - Express API - chua xac dinh containerize hay khong&quot;]
+  SRV --&gt;|&quot;Prisma / SQL&quot;| PG[(&quot;1 PostgreSQL instance&quot;)]
+  SRV --&gt;|&quot;SMTP&quot;| SMTP[[&quot;SMTP / Email Provider - dev: Mailtrap hoac console log, prod: chua xac dinh&quot;]]
+</pre>
+<hr />
+<h2 id="5-phase-breakdown-input-cho-low-level-designer">5. Phase breakdown (input cho <code>low-level-designer</code>)</h2>
+<h3 id="phase-0-setup-project">Phase 0: Setup project</h3>
+<ul>
+<li><strong>Thành phần thuộc phase</strong>: Backend skeleton (Express+TS project
+structure, Prisma schema cho <code>User</code>/<code>Task</code> theo đúng Data Model mục 5
+SRS, migration ban đầu, cấu hình env/<code>.env</code> cho DB và secret JWT); Android
+skeleton (project Compose + Hilt setup, cấu trúc package/module theo
+Presentation/Domain/Data, placeholder cho 7 màn hình, <code>NavHost</code> cơ bản,
+cấu hình <code>OkHttpClient</code>/Retrofit base URL theo build variant dev/prod).</li>
+<li><strong>Thứ tự phụ thuộc</strong>: không phụ thuộc phase khác; backend và Android có
+thể làm song song.</li>
+<li><strong>Tiêu chí &quot;đủ&quot; ở mức HLD</strong>: Prisma schema khớp đúng field/constraint mục
+5.1/5.2 SRS; cấu trúc 3 layer Android đã rõ ràng (gói/package riêng cho
+domain không import android.*); chưa còn câu hỏi mở về &quot;module Gradle
+đơn hay đa module&quot; (nếu cần, đây là quyết định LLD, không chặn Phase 0).</li>
+</ul>
+<h3 id="phase-1-auth">Phase 1: Auth</h3>
+<ul>
+<li><strong>Thành phần thuộc phase</strong>: Backend <code>/auth/register</code>, <code>/auth/login</code>,
+<code>/auth/forgot-password</code>, <code>/auth/reset-password</code> (AuthController,
+AuthService, bcrypt, jsonwebtoken, Zod validation, EmailService dev
+stub); Android <code>LoginScreen</code>, <code>RegisterScreen</code>, <code>ForgotPasswordScreen</code>,
+<code>ResetPasswordScreen</code>, <code>AuthViewModel</code>, 5 UseCase Auth, <code>AuthRepository</code>
+<ul>
+<li>impl, <code>TokenLocalDataSource</code> (DataStore+Keystore).</li>
+</ul>
+</li>
+<li><strong>Thứ tự phụ thuộc</strong>: cần Phase 0 xong. Backend Auth endpoint nên hoàn
+thiện (hoặc contract thống nhất rõ) trước khi Android tích hợp thật; có
+thể làm song song bằng mock response nếu cần tiến độ.</li>
+<li><strong>Tiêu chí &quot;đủ&quot; ở mức HLD</strong>: mọi endpoint Auth trả đúng status code theo
+mục 6.2 SRS; Android có đủ 4 màn hình + lưu/xóa token hoạt động; interface
+<code>AuthRepository</code> đã chốt đủ method cần dùng (register/login/logout/
+forgotPassword/resetPassword) — không còn câu hỏi mở về ranh giới
+interface này; <strong>điểm cần xác nhận trước khi LLD bắt đầu</strong>: luồng
+register có trả token trực tiếp hay cần gọi thêm login (xem Open
+Questions).</li>
+</ul>
+<h3 id="phase-2-task-crud-cơ-bản">Phase 2: Task CRUD cơ bản</h3>
+<ul>
+<li><strong>Thành phần thuộc phase</strong>: Backend <code>/tasks</code> POST/GET/PUT/DELETE +
+ownership enforcement qua <code>authMiddleware</code>, <code>TaskController</code>,
+<code>TaskService</code>; Android <code>TaskListScreen</code> (render cơ bản, chưa filter),
+<code>CreateTaskScreen</code>, <code>EditTaskScreen</code>, toggle checkbox, swipe-to-delete UI,
+5 UseCase Task, <code>TaskRepository</code> + impl, <code>TaskApiService</code>.</li>
+<li><strong>Thứ tự phụ thuộc</strong>: cần Phase 1 xong (phải có token hợp lệ để gọi
+<code>/tasks</code>).</li>
+<li><strong>Tiêu chí &quot;đủ&quot; ở mức HLD</strong>: CRUD hoạt động end-to-end với ownership đúng
+(user A không thấy/sửa được task user B); mọi status code <code>200/201/204/ 400/403/404</code> đã có đường xử lý tối thiểu ở cả hai phía (dù UI message
+chưa polish ở phase này).</li>
+</ul>
+<h3 id="phase-3-filter-pull-to-refresh-emptyerrorloading-state-hoàn-chỉnh">Phase 3: Filter, pull-to-refresh, empty/error/loading state hoàn chỉnh</h3>
+<ul>
+<li><strong>Thành phần thuộc phase</strong>: Android <code>FilterChip</code> All/Open/Done,
+pull-to-refresh, 2 kiểu empty-state (chưa có task nào vs lọc không có kết
+quả), loading-state, error-state kèm nút Thử lại; Backend hoàn thiện
+<code>?status=</code> query param nếu chưa làm ở Phase 2.</li>
+<li><strong>Thứ tự phụ thuộc</strong>: cần Phase 2 xong.</li>
+<li><strong>Tiêu chí &quot;đủ&quot; ở mức HLD</strong>: mọi AC của FR-06 đến FR-10 (SRS) đã có UI
+state tương ứng được mô tả rõ ràng; filter giữ nguyên qua pull-to-refresh
+theo đúng AC FR-08.</li>
+</ul>
+<h3 id="phase-4-edge-cases-hardening">Phase 4: Edge cases &amp; hardening</h3>
+<ul>
+<li><strong>Thành phần thuộc phase</strong>: chống double-submit cho toggle và mọi thao
+tác ghi; hoàn thiện OkHttp Interceptor phát hiện <code>401</code> toàn cục +
+<code>SessionEventBus</code> + observer điều hướng; giữ dữ liệu form khi xoay màn
+hình (Compose <code>rememberSaveable</code>/ViewModel <code>SavedStateHandle</code> — cơ chế cụ
+thể để LLD quyết định); rollback UI khi toggle lỗi; xử lý <code>403</code>/<code>404</code> theo
+mục 3.3 bảng ánh xạ.</li>
+<li><strong>Thứ tự phụ thuộc</strong>: cần Phase 2 và 3 xong (cần có đủ luồng CRUD + UI
+state để hardening lên trên).</li>
+<li><strong>Tiêu chí &quot;đủ&quot; ở mức HLD</strong>: toàn bộ Edge Cases mục 7.2 SRS (#6 đến #10)
+đã có hành vi rõ ràng ở mức ý nghĩa (không cần pseudocode/thuật toán cụ
+thể) — sẵn sàng cho LLD viết chi tiết cơ chế (ví dụ: dùng <code>rememberSaveable</code>
+key nào, debounce bằng cách nào).</li>
+</ul>
+<h3 id="phase-5-testing-đầy-đủ">Phase 5: Testing đầy đủ</h3>
+<ul>
+<li><strong>Thành phần thuộc phase</strong>: Backend Jest+Supertest cho 5 Unit Test
+Scenario (mục 7.1 SRS) + test luồng Auth; Android JUnit4+MockK cho
+ViewModel/UseCase, Turbine cho <code>StateFlow</code>/<code>SharedFlow</code>
+(<code>SessionEventBus</code>), Compose UI Testing cho các luồng chính (login,
+create task, toggle, delete).</li>
+<li><strong>Thứ tự phụ thuộc</strong>: cần Phase 1–4 đã có code để test; có thể viết test
+song song/TDD trong từng phase trước nếu team muốn, phase này đảm bảo
+coverage tổng thể trước khi coi là hoàn thành.</li>
+<li><strong>Tiêu chí &quot;đủ&quot; ở mức HLD</strong>: không còn case nào trong mục Edge Cases (mục
+7 SRS) chưa có test tương ứng ở backend hoặc Android.</li>
+</ul>
+<hr />
+<h2 id="6-thành-phầnkênh-giao-tiếp-nhạy-cảm-bảo-mật-tổng-quan">6. Thành phần/kênh giao tiếp nhạy cảm bảo mật (tổng quan)</h2>
+<ul>
+<li><strong>Android ↔ Backend qua HTTPS</strong> — public-facing (kênh ra internet khi
+dùng thiết bị thật/production): phải dùng TLS hợp lệ, không chấp nhận
+HTTP plaintext ở production.</li>
+<li><strong><code>/auth/register</code>, <code>/auth/login</code>, <code>/auth/reset-password</code></strong> — chứa mật
+khẩu plaintext trong request body (chỉ trong transit, hashed tại rest
+bằng bcrypt): cần đảm bảo không log plaintext password/email (NFR-3,
+NFR-4 SRS), log phải mask các field nhạy cảm.</li>
+<li><strong>JWT lưu trên Android (<code>TokenLocalDataSource</code>)</strong> — xử lý secret/token:
+bắt buộc dùng DataStore + Keystore-encrypted storage, không lưu
+SharedPreferences thường/plaintext.</li>
+<li><strong><code>/auth/forgot-password</code> → EmailService → SMTP</strong> — kênh gửi OTP ra
+ngoài hệ thống qua internet: OTP cần thời hạn ngắn, không log OTP
+plaintext ra console ở production (chỉ chấp nhận ở dev), cân nhắc rate-
+limit để tránh spam/brute-force OTP (chi tiết thuộc <code>threat-modeler</code>/
+<code>security-auditor</code> nếu cần phân tích sâu).</li>
+<li><strong>Backend ↔ PostgreSQL</strong> — connection string chứa credential DB: cần
+secret management (biến môi trường/secret store), không hardcode trong
+code — cơ chế secret management cụ thể <strong>chưa xác định</strong>, cần đội vận
+hành xác nhận.</li>
+<li>Ghi chú: đây là mục đánh dấu tổng quan để không bỏ sót trong HLD, <strong>không</strong>
+phải audit chi tiết STRIDE/lỗ hổng — nếu cần mức đó, dùng <code>threat-modeler</code>
+hoặc <code>security-auditor</code> sau khi HLD này được duyệt.</li>
+</ul>
+<hr />
+<h2 id="7-ngoài-phạm-vi-tài-liệu-này">7. Ngoài phạm vi tài liệu này</h2>
+<ul>
+<li><strong>API Contract chi tiết</strong> (request/response schema, message lỗi cụ thể
+cho từng field) chưa được đặc tả ở đây — thuộc <code>api-designer</code>, cần làm
+ngay sau khi HLD này được duyệt, trước khi code backend thật.</li>
+<li><strong>Câu hỏi mở kỹ thuật cần <code>api-designer</code> xác nhận khi detail hóa contract</strong>:
+<ol>
+<li><code>/auth/register</code> có nên trả luôn JWT (giảm 1 round-trip) hay client
+phải gọi thêm <code>/auth/login</code> sau khi register thành công (giả định
+hiện tại ở mục 3.1 luồng 1) — API Contract SRS mục 6.2 chưa ghi rõ.</li>
+<li><code>/auth/forgot-password</code> khi email không tồn tại nên trả <code>200</code> chung
+(khuyến nghị bảo mật) hay <code>404</code> (như bảng liệt kê trong SRS mục 6.2)
+— SRS đã ghi nhận đây là mâu thuẫn chưa giải quyết (xem SRS mục 10.2),
+HLD này không tự chọn thay.</li>
+</ol>
+</li>
+<li><strong>NFR-6 đến NFR-10</strong> (response time SLA, scalability, GDPR/tuân thủ dữ
+liệu, minSdkVersion, uptime) vẫn <strong>chưa xác định</strong> theo SRS mục 4 — không
+chặn HLD này (vì phạm vi hiện tại là demo/học thuật) nhưng sẽ chặn thiết
+kế hạ tầng production thật và cần <code>requirements-analyst</code> làm rõ trước khi
+đó.</li>
+<li><strong>Cơ chế lưu/kiểm tra OTP cụ thể</strong> (bảng riêng trong DB, field trong
+<code>User</code>, Redis, TTL chính xác) chưa chốt — để <code>low-level-designer</code> quyết
+định dựa trên constraint thực tế (không có NFR về scale/TTL cụ thể từ
+SRS).</li>
+<li><strong>Quyết định Gradle đơn-module vs đa-module</strong> cho Clean Architecture
+Android chưa chốt ở mức HLD (không ảnh hưởng ranh giới layer, chỉ ảnh
+hưởng build/tổ chức mã nguồn) — để <code>low-level-designer</code> quyết định.</li>
+</ul>
+<h2 id="8-bước-tiếp-theo-gợi-ý">8. Bước tiếp theo gợi ý</h2>
+<ul>
+<li>Dùng <code>api-designer</code> để thiết kế contract chi tiết (schema, status code,
+error case cụ thể) cho <code>/auth/*</code> và <code>/tasks/*</code>, đồng thời xác nhận 2 câu
+hỏi mở ở mục 7.</li>
+<li>Dùng <code>low-level-designer</code> để chi tiết hóa Phase 0–1 (Auth) thành class/
+module design, sequence diagram cấp code — dùng HLD này làm input trực
+tiếp.</li>
+<li>Dùng <code>requirements-analyst</code> nếu cần làm rõ NFR-6 đến NFR-10 trước khi
+thiết kế hạ tầng production thật (không chặn demo hiện tại).</li>
+</ul>
+
+  </article>
+  <nav class="page-toc">
+    <div class="t">Trong trang này</div>
+    <ol>
+      <li><a href="#phương-án-kiến-trúc-đã-chốt">Phương án kiến trúc đã chốt</a></li>
+      <li><a href="#bối-cảnh-hệ-thống-hiện-tại-đã-khảo-sát">Bối cảnh hệ thống hiện tại (đã khảo sát)</a></li>
+      <li><a href="#1-sơ-đồ-thành-phần">1. Sơ đồ thành phần</a></li>
+      <li class="lvl3"><a href="#11-sơ-đồ-tổng-thể">1.1 Sơ đồ tổng thể</a></li>
+      <li class="lvl3"><a href="#12-ghi-chú-về-biên-giới">1.2 Ghi chú về biên giới</a></li>
+      <li><a href="#2-trách-nhiệm-từng-thành-phần-kèm-đề-xuất-thư-viện">2. Trách nhiệm từng thành phần (kèm đề xuất thư viện)</a></li>
+      <li class="lvl3"><a href="#android-presentation-layer-mới">Android — Presentation Layer (MỚI)</a></li>
+      <li class="lvl3"><a href="#android-domain-layer-mới-kotlin-thuần">Android — Domain Layer (MỚI, Kotlin thuần)</a></li>
+      <li class="lvl3"><a href="#android-data-layer-mới">Android — Data Layer (MỚI)</a></li>
+      <li class="lvl3"><a href="#android-dependency-injection-mới">Android — Dependency Injection (MỚI)</a></li>
+      <li class="lvl3"><a href="#android-testing-mới">Android — Testing (MỚI)</a></li>
+      <li class="lvl3"><a href="#backend-web-framework-mới">Backend — Web framework (MỚI)</a></li>
+      <li class="lvl3"><a href="#backend-ormdatabase-mới">Backend — ORM/Database (MỚI)</a></li>
+      <li class="lvl3"><a href="#backend-auth-mới">Backend — Auth (MỚI)</a></li>
+      <li class="lvl3"><a href="#backend-validation-mới">Backend — Validation (MỚI)</a></li>
+      <li class="lvl3"><a href="#backend-email-mới-phục-vụ-fr-05">Backend — Email (MỚI, phục vụ FR-05)</a></li>
+      <li class="lvl3"><a href="#backend-testing-mới">Backend — Testing (MỚI)</a></li>
+      <li><a href="#3-giao-tiếp-luồng-dữ-liệu">3. Giao tiếp &amp;amp; luồng dữ liệu</a></li>
+      <li class="lvl3"><a href="#31-luồng-chính-1-đăng-ký-đăng-nhập-lưu-token-gọi-task-api">3.1 Luồng chính 1: Đăng ký → Đăng nhập → lưu token → gọi Task API</a></li>
+      <li class="lvl3"><a href="#32-luồng-chính-2-quên-mật-khẩu-otp-qua-email">3.2 Luồng chính 2: Quên mật khẩu (OTP qua email)</a></li>
+      <li class="lvl3"><a href="#33-luồng-chính-3-crud-task-end-to-end-ánh-xạ-lỗi">3.3 Luồng chính 3: CRUD Task (end-to-end + ánh xạ lỗi)</a></li>
+      <li class="lvl3"><a href="#34-luồng-chính-4-xử-lý-token-hết-hạn-401-toàn-cục">3.4 Luồng chính 4: Xử lý token hết hạn (401 toàn cục)</a></li>
+      <li><a href="#4-deployment-view-tổng-quan">4. Deployment view (tổng quan)</a></li>
+      <li><a href="#5-phase-breakdown-input-cho-low-level-designer">5. Phase breakdown (input cho low-level-designer)</a></li>
+      <li class="lvl3"><a href="#phase-0-setup-project">Phase 0: Setup project</a></li>
+      <li class="lvl3"><a href="#phase-1-auth">Phase 1: Auth</a></li>
+      <li class="lvl3"><a href="#phase-2-task-crud-cơ-bản">Phase 2: Task CRUD cơ bản</a></li>
+      <li class="lvl3"><a href="#phase-3-filter-pull-to-refresh-emptyerrorloading-state-hoàn-chỉnh">Phase 3: Filter, pull-to-refresh, empty/error/loading state hoàn chỉnh</a></li>
+      <li class="lvl3"><a href="#phase-4-edge-cases-hardening">Phase 4: Edge cases &amp;amp; hardening</a></li>
+      <li class="lvl3"><a href="#phase-5-testing-đầy-đủ">Phase 5: Testing đầy đủ</a></li>
+      <li><a href="#6-thành-phầnkênh-giao-tiếp-nhạy-cảm-bảo-mật-tổng-quan">6. Thành phần/kênh giao tiếp nhạy cảm bảo mật (tổng quan)</a></li>
+      <li><a href="#7-ngoài-phạm-vi-tài-liệu-này">7. Ngoài phạm vi tài liệu này</a></li>
+      <li><a href="#8-bước-tiếp-theo-gợi-ý">8. Bước tiếp theo gợi ý</a></li>
+    </ol>
+  </nav>
+</div>
+
+<footer class="doc-footer">
+  <span>docs/HLD_ToDo_Android.md</span>
+  <span><a href="index.html">&larr; Về trang tổng quan</a></span>
+</footer>
+</body>
+</html>

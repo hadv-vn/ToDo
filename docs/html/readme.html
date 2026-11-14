@@ -1,0 +1,201 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>To-Do CRUD — Android App + Backend API · ToDo Android Docs</title>
+<link rel="stylesheet" href="assets/doc.css">
+
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand"><span class="mark">📚</span> ToDo Android · Docs</div>
+  <nav class="topnav">
+    <a href="index.html">Tổng quan</a>
+    <a href="readme.html" class="active">README</a>
+    <a href="srs.html">SRS</a>
+    <a href="hld.html">HLD</a>
+    <a href="lld.html">LLD</a>
+    <a href="api-contract.html">API Contract</a>
+    <a href="admin-task-statistics.html">Admin Thống kê</a>
+    <a href="test-scenarios.html">Kịch bản Test</a>
+  </nav>
+</div></div>
+
+<div class="shell">
+  <article>
+    <div class="doc-head">
+      <div class="eyebrow">Tổng quan dự án</div>
+      <h1>To-Do CRUD — Android App + Backend API</h1>
+      <div class="doc-meta"><span>Nguồn: <code>README.md</code></span><span>Cập nhật: 2026-11-12</span></div>
+    </div>
+    
+<p>Ứng dụng quản lý công việc (Task/To-Do) theo từng người dùng, gồm 2 phần:</p>
+<ul>
+<li><strong><code>auth-core/</code></strong> — <strong>git submodule</strong>, trỏ tới repo <a href="https://github.com/hadv-vn/Multi-user-System">hadv-vn/Multi-user-System</a> — cung cấp backend dùng chung (NestJS + Prisma + PostgreSQL, có sẵn Auth/Session/RBAC/Account/Admin) và một frontend Next.js riêng của hệ thống đó, <strong>cộng thêm module Task CRUD</strong> (<code>backend/src/features/todo-task-module/</code>) được thêm riêng cho ToDo. Project này <strong>không tự viết backend riêng</strong> mà dùng lại/mở rộng ngay trong submodule này — xem chi tiết ở <a href="#1-auth-core-submodule">mục auth-core</a> bên dưới.</li>
+<li><strong><code>android/</code></strong> — Ứng dụng Android native (Kotlin + Jetpack Compose + Clean Architecture), gọi API từ backend trong <code>auth-core/</code>.</li>
+</ul>
+<p>Toàn bộ tài liệu thiết kế (yêu cầu, kiến trúc, API contract) nằm ở <a href="docs/"><code>docs/</code></a>:</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Tài liệu</th>
+<th>Nội dung</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="docs/SRS_ToDo_Android.md"><code>docs/SRS_ToDo_Android.md</code></a></td>
+<td>Yêu cầu chức năng/phi chức năng, Data Model</td>
+</tr>
+<tr>
+<td><a href="docs/HLD_ToDo_Android.md"><code>docs/HLD_ToDo_Android.md</code></a></td>
+<td>Kiến trúc hệ thống, lựa chọn thư viện</td>
+</tr>
+<tr>
+<td><a href="docs/LLD_ToDo_Android.md"><code>docs/LLD_ToDo_Android.md</code></a></td>
+<td>Thiết kế class/module chi tiết, sequence diagram</td>
+</tr>
+<tr>
+<td><a href="docs/API_Contract_ToDo_Android.md"><code>docs/API_Contract_ToDo_Android.md</code></a></td>
+<td>Đặc tả request/response từng endpoint</td>
+</tr>
+<tr>
+<td><a href="docs/Admin_Task_Statistics_ToDo.md"><code>docs/Admin_Task_Statistics_ToDo.md</code></a></td>
+<td>Thống kê công việc cho ADMIN trên web admin (chỉ số liệu tổng hợp)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="yêu-cầu-môi-trường">Yêu cầu môi trường</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Công cụ</th>
+<th>Phiên bản</th>
+<th>Dùng cho</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>Node.js</td>
+<td>20.19+, 22.12+ hoặc 24+ (xem <code>.nvmrc</code> trong <code>auth-core/</code>)</td>
+<td>Backend/frontend trong <code>auth-core/</code></td>
+</tr>
+<tr>
+<td>PostgreSQL</td>
+<td>14+</td>
+<td>Backend trong <code>auth-core/</code> (database)</td>
+</tr>
+<tr>
+<td>Android Studio</td>
+<td>bản mới nhất (Ladybug trở lên)</td>
+<td>Android — tự tải Android SDK/Gradle khi mở project lần đầu</td>
+</tr>
+<tr>
+<td>JDK</td>
+<td>17+ (Android Studio có sẵn)</td>
+<td>Android</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="1-auth-core-submodule">1. auth-core (submodule)</h2>
+<p><code>auth-core/</code> <strong>không phải code của project này</strong> — đây là một <a href="https://git-scm.com/book/en/v2/Git-Tools-Submodules">git submodule</a> trỏ tới repo riêng <a href="https://github.com/hadv-vn/Multi-user-System">hadv-vn/Multi-user-System</a>. Project ToDo dùng lại nguyên khối backend (và frontend quản trị) của hệ thống đó thay vì tự viết, thay cho <code>backend/</code> (Express) cũ đã bị loại bỏ.</p>
+<p>Khai báo trong <a href=".gitmodules"><code>.gitmodules</code></a>:</p>
+<pre><code class="language-ini">[submodule &quot;auth-core&quot;]
+	path = auth-core
+	url = https://github.com/hadv-vn/Multi-user-System.git
+</code></pre>
+<h3 id="lấy-code-submodule">Lấy code submodule</h3>
+<pre><code class="language-bash"># Khi clone project lần đầu — thêm --recursive để lấy luôn auth-core
+git clone --recursive https://github.com/hadv-vn/ToDo.git
+
+# Nếu đã clone trước đó mà chưa có nội dung trong auth-core/
+git submodule update --init --recursive
+</code></pre>
+<h3 id="cập-nhật-submodule-lên-commit-mới-nhất">Cập nhật submodule lên commit mới nhất</h3>
+<pre><code class="language-bash">cd auth-core
+git pull origin main        # hoặc branch tương ứng của Multi-user-System
+cd ..
+git add auth-core
+git commit -m &quot;chore: bump auth-core submodule&quot;
+</code></pre>
+<h3 id="cài-đặt-chạy">Cài đặt &amp; chạy</h3>
+<p>Toàn bộ hướng dẫn cài đặt, chạy, cấu hình <code>.env</code>, scripts build/run/stop, tài khoản admin mặc định, v.v. nằm trong <strong>README của chính submodule</strong>: <a href="auth-core/README.md"><code>auth-core/README.md</code></a>. Tóm tắt kiến trúc:</p>
+<ul>
+<li><strong>Backend</strong>: NestJS + Prisma + PostgreSQL, modular monolith (<code>auth</code>, <code>session</code>, <code>rbac</code>, <code>account</code>, <code>admin</code>, <code>email</code>...), API tại <code>/api/v1</code>, chạy ở cổng <strong>8081</strong>.</li>
+<li><strong>Frontend</strong> (của riêng <code>auth-core</code>, không phải app Android): Next.js + Tailwind, chạy ở cổng <strong>8080</strong>.</li>
+<li>Session lưu phía server trong PostgreSQL (không dùng JWT, xác thực qua cookie httpOnly <code>sid</code> + CSRF double-submit cookie <code>csrfToken</code>/header <code>x-csrf-token</code>) — xem ADR trong <code>auth-core/docs/</code>.</li>
+<li><strong>Task CRUD cho ToDo</strong>: module <code>backend/src/features/todo-task-module/</code> (API <code>api/v1/tasks</code>) — <strong>mở rộng riêng cho project ToDo</strong>, tái dùng <code>AuthGuard</code>/CSRF/Prisma có sẵn của <code>auth-core</code>, KHÔNG phải phần generic của Multi-user-System. Android gọi thẳng endpoint này, cùng host/port với Auth (8081).</li>
+</ul>
+<p>Chạy nhanh (Linux, theo scripts có sẵn trong submodule):</p>
+<pre><code class="language-bash">cd auth-core
+./scripts/build-all.sh
+./scripts/run-all.sh
+</code></pre>
+<blockquote>
+<p>Android app trong <code>android/</code> gọi API từ backend này — nếu cổng/API base URL khác mặc định (<code>8081</code>), cập nhật <code>BASE_URL</code> trong <code>android/app/build.gradle.kts</code> cho khớp (xem mục <a href="#2-ch%E1%BA%A1y-android">2. Chạy Android</a>).</p>
+</blockquote>
+<h2 id="2-chạy-android">2. Chạy Android</h2>
+<ol>
+<li>Mở Android Studio → <strong>Open</strong> → chọn thư mục <code>android/</code>.</li>
+<li>Đợi Android Studio tự đồng bộ Gradle và tải Android SDK còn thiếu (nếu có) trong lần mở đầu tiên.</li>
+<li>Cấu hình địa chỉ Backend API nếu cần — mặc định ở <code>app/build.gradle.kts</code> (build type <code>debug</code>), <code>BASE_URL</code> trỏ tới <code>http://10.0.2.2:8081/</code> (cổng <strong>8081</strong> của backend NestJS trong <code>auth-core/</code>, nhìn từ Android Emulator tới máy host). Nếu chạy trên thiết bị thật, đổi thành địa chỉ IP LAN thật của máy chạy backend, ví dụ <code>http://192.168.1.10:8081/</code>.</li>
+<li>Chạy app: chọn thiết bị ảo (emulator) hoặc thiết bị thật đã bật USB debugging → nhấn <strong>Run</strong>.</li>
+<li>Đảm bảo backend trong <code>auth-core/</code> đang chạy (mục <a href="#1-auth-core-submodule">1. auth-core (submodule)</a>) trước khi dùng app — app không có chế độ offline.</li>
+</ol>
+<h3 id="chạy-test-android">Chạy test Android</h3>
+<ul>
+<li>Unit test (JVM, không cần thiết bị): <code>./gradlew test</code> (Windows: <code>gradlew.bat test</code>)</li>
+<li>Compose UI test (cần emulator/thiết bị): <code>./gradlew connectedAndroidTest</code></li>
+</ul>
+<h2 id="luồng-sử-dụng-chính">Luồng sử dụng chính</h2>
+<ol>
+<li>Đăng ký tài khoản (email + mật khẩu) → tự động đăng nhập.</li>
+<li>Tạo/xem/sửa/xóa task, đánh dấu hoàn thành (toggle), lọc theo trạng thái (Tất cả/Đang mở/Đã xong).</li>
+<li>Quên mật khẩu → nhận OTP qua email (hoặc xem trong console log backend nếu chưa cấu hình SMTP) → đặt lại mật khẩu.</li>
+<li>Đăng xuất.</li>
+</ol>
+<h2 id="cấu-trúc-thư-mục">Cấu trúc thư mục</h2>
+<pre><code>ToDo/
+├── docs/              # Tài liệu thiết kế (SRS, HLD, LLD, API Contract) của app Android
+├── .gitmodules        # Khai báo submodule auth-core
+├── auth-core/         # GIT SUBMODULE → github.com/hadv-vn/Multi-user-System
+│   ├── backend/           # NestJS + Prisma — Auth/Session/RBAC/Account/Admin, API /api/v1 (cổng 8081)
+│   ├── frontend/          # Next.js + Tailwind — UI quản trị riêng của Multi-user-System (cổng 8080)
+│   ├── docs/              # Tài liệu thiết kế/ADR của riêng auth-core
+│   └── scripts/           # build-all.sh / run-all.sh / stop-all.sh / setup-database.sh
+└── android/            # App Android — Kotlin + Jetpack Compose
+    └── app/src/main/java/com/example/todo/
+        ├── domain/         # Entity, UseCase, Repository interface (Kotlin thuần)
+        ├── data/           # DTO, API service (Retrofit), Repository impl, local storage
+        ├── presentation/   # Composable screens, ViewModel, Navigation
+        └── di/             # Hilt modules
+</code></pre>
+
+  </article>
+  <nav class="page-toc">
+    <div class="t">Trong trang này</div>
+    <ol>
+      <li><a href="#yêu-cầu-môi-trường">Yêu cầu môi trường</a></li>
+      <li><a href="#1-auth-core-submodule">1. auth-core (submodule)</a></li>
+      <li class="lvl3"><a href="#lấy-code-submodule">Lấy code submodule</a></li>
+      <li class="lvl3"><a href="#cập-nhật-submodule-lên-commit-mới-nhất">Cập nhật submodule lên commit mới nhất</a></li>
+      <li class="lvl3"><a href="#cài-đặt-chạy">Cài đặt &amp;amp; chạy</a></li>
+      <li><a href="#2-chạy-android">2. Chạy Android</a></li>
+      <li class="lvl3"><a href="#chạy-test-android">Chạy test Android</a></li>
+      <li><a href="#luồng-sử-dụng-chính">Luồng sử dụng chính</a></li>
+      <li><a href="#cấu-trúc-thư-mục">Cấu trúc thư mục</a></li>
+    </ol>
+  </nav>
+</div>
+
+<footer class="doc-footer">
+  <span>README.md</span>
+  <span><a href="index.html">&larr; Về trang tổng quan</a></span>
+</footer>
+</body>
+</html>

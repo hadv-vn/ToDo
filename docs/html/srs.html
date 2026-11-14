@@ -1,0 +1,1012 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Software Requirements Specification (SRS) · ToDo Android Docs</title>
+<link rel="stylesheet" href="assets/doc.css">
+
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand"><span class="mark">📚</span> ToDo Android · Docs</div>
+  <nav class="topnav">
+    <a href="index.html">Tổng quan</a>
+    <a href="readme.html">README</a>
+    <a href="srs.html" class="active">SRS</a>
+    <a href="hld.html">HLD</a>
+    <a href="lld.html">LLD</a>
+    <a href="api-contract.html">API Contract</a>
+    <a href="admin-task-statistics.html">Admin Thống kê</a>
+    <a href="test-scenarios.html">Kịch bản Test</a>
+  </nav>
+</div></div>
+
+<div class="shell">
+  <article>
+    <div class="doc-head">
+      <div class="eyebrow">SRS · Đặc tả yêu cầu phần mềm</div>
+      <h1>Software Requirements Specification (SRS)</h1>
+      <div class="doc-meta"><span>Nguồn: <code>docs\SRS_ToDo_Android.md</code></span><span>Cập nhật: 2026-10-09</span></div>
+    </div>
+    
+<h2 id="ứng-dụng-android-mobile-quản-lý-taskto-do-crud">Ứng dụng Android Mobile Quản lý Task/To-Do (CRUD)</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Dự án</strong></td>
+<td>Full-Stack Assessment — Task 2: Task/To-Do CRUD Management</td>
+</tr>
+<tr>
+<td><strong>Phiên bản</strong></td>
+<td>1.0</td>
+</tr>
+<tr>
+<td><strong>Ngày tạo</strong></td>
+<td>2026-10-08</td>
+</tr>
+<tr>
+<td><strong>Trạng thái</strong></td>
+<td>Draft — chờ review stakeholder</td>
+</tr>
+<tr>
+<td><strong>Nguồn yêu cầu</strong></td>
+<td>Worksheet gốc <code>Task2_Task_ToDo_CRUD.pdf</code> + làm rõ qua <code>requirements-analyst</code> và xác nhận trực tiếp với stakeholder</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="mục-lục">Mục lục</h2>
+<ol>
+<li><a href="#1-gi%E1%BB%9Bi-thi%E1%BB%87u">Giới thiệu</a></li>
+<li><a href="#2-m%C3%B4-t%E1%BA%A3-t%E1%BB%95ng-quan">Mô tả tổng quan</a></li>
+<li><a href="#3-y%C3%AAu-c%E1%BA%A7u-ch%E1%BB%A9c-n%C4%83ng">Yêu cầu chức năng</a></li>
+<li><a href="#4-y%C3%AAu-c%E1%BA%A7u-phi-ch%E1%BB%A9c-n%C4%83ng">Yêu cầu phi chức năng</a></li>
+<li><a href="#5-data-model">Data Model</a></li>
+<li><a href="#6-api-contract">API Contract</a></li>
+<li><a href="#7-edge-cases--test-scenarios">Edge Cases &amp; Test Scenarios</a></li>
+<li><a href="#8-ph%E1%BA%A1m-vi">Phạm vi</a></li>
+<li><a href="#9-giao-di%E1%BB%87n-ngo%C3%A0i">Giao diện ngoài</a></li>
+<li><a href="#10-ph%E1%BB%A5-l%E1%BB%A5c">Phụ lục</a></li>
+</ol>
+<hr />
+<h2 id="1-giới-thiệu">1. Giới thiệu</h2>
+<h3 id="11-mục-đích-tài-liệu">1.1 Mục đích tài liệu</h3>
+<p>Tài liệu này mô tả đầy đủ các yêu cầu chức năng và phi chức năng cho việc xây
+dựng một <strong>ứng dụng Android native</strong> quản lý Task/To-Do (CRUD) cùng với
+<strong>Backend REST API</strong> phục vụ ứng dụng đó, theo đúng tinh thần IEEE 830 (rút
+gọn). Tài liệu dùng làm căn cứ thống nhất giữa các bên liên quan (product
+owner, lập trình viên backend, lập trình viên Android, QA) trong suốt quá
+trình thiết kế, phát triển và kiểm thử.</p>
+<h3 id="12-phạm-vi-tài-liệu">1.2 Phạm vi tài liệu</h3>
+<p>Tài liệu bao trùm toàn bộ scope <strong>full-stack</strong> đã được chốt:</p>
+<ul>
+<li>Backend REST API cho quản lý Task (theo đúng contract gốc trong worksheet,
+không thay đổi) và API Auth (đăng ký/đăng nhập/đăng xuất/quên mật khẩu —
+phần <strong>mở rộng</strong> so với worksheet gốc, do scope full-stack + đăng
+nhập/đăng xuất đã được xác nhận).</li>
+<li>Ứng dụng Android native tiêu thụ các API trên, hoạt động theo mô hình
+<strong>online-only</strong> (không cache offline, không đồng bộ nền).</li>
+</ul>
+<p>Tài liệu KHÔNG bao gồm: thiết kế kỹ thuật chi tiết (kiến trúc code, lựa chọn
+framework/thư viện cụ thể, cơ chế lưu trữ token trên thiết bị, nhà cung cấp
+dịch vụ gửi email...), ước lượng effort/story point. Các nội dung này thuộc
+phạm vi của tài liệu thiết kế kỹ thuật/estimation riêng.</p>
+<h3 id="13-đối-tượng-sử-dụng">1.3 Đối tượng sử dụng</h3>
+<ul>
+<li>Product owner / stakeholder: đối chiếu yêu cầu đã chốt.</li>
+<li>Lập trình viên Backend: triển khai API theo đúng contract và business
+rule.</li>
+<li>Lập trình viên Android: triển khai UI/UX và luồng tương tác theo đúng
+Acceptance Criteria.</li>
+<li>QA/Tester: dùng Acceptance Criteria và Edge Cases làm căn cứ viết test
+case.</li>
+</ul>
+<h3 id="14-định-nghĩa-thuật-ngữ-viết-tắt">1.4 Định nghĩa / Thuật ngữ viết tắt</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Thuật ngữ</th>
+<th>Giải thích</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>SRS</td>
+<td>Software Requirements Specification</td>
+</tr>
+<tr>
+<td>CRUD</td>
+<td>Create, Read, Update, Delete</td>
+</tr>
+<tr>
+<td>JWT</td>
+<td>JSON Web Token — token xác thực dùng trong header <code>Authorization: Bearer &lt;token&gt;</code></td>
+</tr>
+<tr>
+<td>OTP</td>
+<td>One-Time Password — mã xác nhận dùng một lần, dùng trong luồng đặt lại mật khẩu</td>
+</tr>
+<tr>
+<td>API</td>
+<td>Application Programming Interface</td>
+</tr>
+<tr>
+<td>REST</td>
+<td>Representational State Transfer</td>
+</tr>
+<tr>
+<td>FR</td>
+<td>Functional Requirement — Yêu cầu chức năng</td>
+</tr>
+<tr>
+<td>NFR</td>
+<td>Non-Functional Requirement — Yêu cầu phi chức năng</td>
+</tr>
+<tr>
+<td>AC</td>
+<td>Acceptance Criteria — Tiêu chí chấp nhận</td>
+</tr>
+<tr>
+<td>UUID</td>
+<td>Universally Unique Identifier</td>
+</tr>
+<tr>
+<td>Toast/Snackbar</td>
+<td>Thành phần UI Android hiển thị thông báo ngắn, tự biến mất</td>
+</tr>
+<tr>
+<td>FilterChip</td>
+<td>Thành phần UI dạng &quot;chip&quot; dùng để chọn bộ lọc (Material Design)</td>
+</tr>
+<tr>
+<td>Swipe-to-delete</td>
+<td>Thao tác vuốt ngang trên một dòng danh sách để lộ hành động xóa</td>
+</tr>
+<tr>
+<td>Pull-to-refresh</td>
+<td>Thao tác vuốt kéo xuống từ đầu danh sách để làm mới dữ liệu</td>
+</tr>
+<tr>
+<td>Online-only</td>
+<td>Mô hình hoạt động yêu cầu kết nối mạng cho mọi thao tác, không có cache/offline mode</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="15-tài-liệu-tham-chiếu">1.5 Tài liệu tham chiếu</h3>
+<ul>
+<li><code>Task2_Task_ToDo_CRUD.pdf</code> — Worksheet gốc của bài assessment (Overview,
+User Story gốc, Data Model, API Contract Task, Back-End/Front-End
+Requirements, Edge Cases, Unit Test Scenarios gốc).</li>
+<li>Output làm rõ yêu cầu từ <code>requirements-analyst</code> + xác nhận trực tiếp với
+stakeholder (nội dung Epic A–G, mục 7 của tài liệu này).</li>
+</ul>
+<hr />
+<h2 id="2-mô-tả-tổng-quan">2. Mô tả tổng quan</h2>
+<h3 id="21-bối-cảnh-nghiệp-vụ">2.1 Bối cảnh nghiệp vụ</h3>
+<p>Đây là bài tập đánh giá kỹ năng full-stack: xây dựng một ứng dụng quản lý
+công việc cá nhân (to-do) cho từng người dùng, với yêu cầu nghiệp vụ cốt lõi
+là CRUD task có <strong>enforce ownership nghiêm ngặt</strong> (người dùng chỉ thấy và
+sửa được task của chính mình). Phạm vi đã được mở rộng so với worksheet gốc
+để bao gồm một ứng dụng Android hoàn chỉnh (có đăng ký/đăng nhập/đăng
+xuất/quên mật khẩu dùng JWT) thay vì chỉ một &quot;front-end list UI&quot; chung
+chung như bản gốc.</p>
+<p>Mô hình hoạt động đã chốt là <strong>online-only</strong>: ứng dụng không lưu cache task
+offline, không đồng bộ nền. Khi mất kết nối mạng, ứng dụng phải hiển thị lỗi
+rõ ràng cho người dùng, không được crash.</p>
+<h3 id="22-đối-tượng-dùng-actor">2.2 Đối tượng dùng / Actor</h3>
+<ul>
+<li><strong>Người dùng (End User)</strong>: cá nhân sử dụng ứng dụng Android để đăng
+ký/đăng nhập và quản lý danh sách task cá nhân của riêng mình (tạo, xem,
+sửa, đánh dấu hoàn thành, xóa). Mỗi người dùng chỉ thấy và thao tác được
+trên task do chính mình sở hữu (<code>ownerId</code>).</li>
+<li><strong>Hệ thống Backend</strong>: đóng vai trò cung cấp API, lưu trữ dữ liệu User và
+Task, enforce ownership và validation.</li>
+</ul>
+<h3 id="23-giả-định-ràng-buộc">2.3 Giả định &amp; ràng buộc</h3>
+<p>Các giả định/ràng buộc sau đã được nêu rõ trong input và/hoặc xác nhận trực
+tiếp với stakeholder (xem thêm mục 10 — Phụ lục):</p>
+<ul>
+<li>Kiến trúc: <strong>full-stack</strong> — xây cả Backend REST API lẫn ứng dụng Android
+native.</li>
+<li>Xác thực: đăng ký/đăng nhập/đăng xuất đầy đủ, dùng <strong>JWT</strong> lưu trên thiết
+bị; cơ chế lưu trữ token cụ thể (ví dụ EncryptedSharedPreferences,
+Keystore...) thuộc về thiết kế kỹ thuật, không đi sâu ở SRS này.</li>
+<li>Mô hình hoạt động: <strong>online-only</strong> — không cache offline, không đồng bộ
+nền.</li>
+<li>Backend framework-agnostic — không chỉ định công nghệ backend cụ thể,
+nhưng phải tuân thủ đúng API Contract (mục 6).</li>
+<li>Màn hình Tạo task và Sửa task là <strong>màn hình riêng (full-screen)</strong>, không
+phải inline-edit (khác với gợi ý &quot;inline-edit&quot; trong worksheet gốc — đã
+điều chỉnh cho phù hợp UX mobile, xem Phụ lục mục 10.1).</li>
+<li>Xóa task dùng cơ chế <strong>swipe-to-delete</strong> kèm dialog xác nhận.</li>
+<li>Mật khẩu tối thiểu 8 ký tự, gồm ít nhất 1 chữ và 1 số.</li>
+<li>Mỗi task đều thuộc về đúng một chủ sở hữu (<code>ownerId</code>); không có tính năng
+chia sẻ/cộng tác task giữa nhiều người dùng.</li>
+</ul>
+<hr />
+<h2 id="3-yêu-cầu-chức-năng">3. Yêu cầu chức năng</h2>
+<p>Mỗi yêu cầu chức năng (FR) tương ứng với một User Story đã làm rõ, được tổ
+chức theo Epic. Acceptance Criteria (AC) được giữ nguyên nội dung từ input,
+chỉ định dạng lại cho nhất quán.</p>
+<h3 id="31-epic-a-xác-thực-authentication">3.1 Epic A — Xác thực (Authentication)</h3>
+<h4 id="fr-01-đăng-ký-tài-khoản-us-01">FR-01 — Đăng ký tài khoản (US-01)</h4>
+<p><strong>User Story:</strong> As a người dùng mới chưa có tài khoản, I want đăng ký tài
+khoản bằng email và mật khẩu trên ứng dụng Android, so that tôi có thể bắt
+đầu tạo và quản lý danh sách công việc cá nhân của riêng mình.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Nhập email + mật khẩu hợp lệ (≥8 ký tự, có ít nhất 1 chữ và 1 số) + xác
+nhận mật khẩu khớp → nhấn Đăng ký → tạo tài khoản thành công → tự động
+đăng nhập → vào thẳng màn hình Danh sách Task kèm thông báo chào mừng.</li>
+<li>Để trống email hoặc mật khẩu hoặc xác nhận mật khẩu → hiển thị lỗi inline
+dưới từng ô, KHÔNG gọi API.</li>
+<li>Email sai định dạng → lỗi inline &quot;Email không hợp lệ&quot;, KHÔNG gọi API.</li>
+<li>Mật khẩu không đạt yêu cầu tối thiểu → lỗi inline tương ứng, KHÔNG gọi
+API.</li>
+<li>Xác nhận mật khẩu không khớp mật khẩu → lỗi inline &quot;Mật khẩu xác nhận
+không khớp&quot;, KHÔNG gọi API.</li>
+<li>Server trả lỗi email đã tồn tại (<code>409</code>) → hiển thị &quot;Email đã được sử
+dụng&quot;, giữ nguyên dữ liệu đã nhập.</li>
+<li>Đang gửi request → nút Đăng ký ở trạng thái loading/disable, chống nhấn
+trùng.</li>
+<li>Mất mạng/server không phản hồi → thông báo lỗi mạng rõ ràng, không crash,
+giữ dữ liệu đã nhập.</li>
+</ul>
+<h4 id="fr-02-đăng-nhập-us-02">FR-02 — Đăng nhập (US-02)</h4>
+<p><strong>User Story:</strong> As a người dùng đã có tài khoản, I want đăng nhập bằng
+email và mật khẩu, so that tôi truy cập được vào danh sách task cá nhân của
+mình.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Email/mật khẩu đúng → xác thực thành công, lưu JWT token trên thiết bị,
+vào màn hình Danh sách Task.</li>
+<li>Để trống email hoặc mật khẩu → lỗi inline, KHÔNG gọi API.</li>
+<li>Sai email hoặc sai mật khẩu → thông báo lỗi chung &quot;Email hoặc mật khẩu
+không đúng&quot; (không tiết lộ trường nào sai), KHÔNG điều hướng.</li>
+<li>Đang xử lý → nút Đăng nhập loading/disable, chống gửi trùng.</li>
+<li>Mất mạng/server lỗi → thông báo lỗi mạng, không crash.</li>
+<li><strong>Giữ phiên đăng nhập</strong>: mở lại app khi token còn hiệu lực → tự động vào
+thẳng Danh sách Task, không bắt đăng nhập lại.</li>
+</ul>
+<h4 id="fr-03-đăng-xuất-us-03">FR-03 — Đăng xuất (US-03)</h4>
+<p><strong>User Story:</strong> As a người dùng đã đăng nhập, I want đăng xuất khỏi ứng
+dụng, so that tôi bảo vệ được dữ liệu task của mình khi không còn sử dụng
+thiết bị hoặc muốn đổi tài khoản.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Chọn Đăng xuất → hiển thị dialog xác nhận &quot;Bạn có chắc muốn đăng xuất?&quot;
+(Hủy/Đăng xuất).</li>
+<li>Xác nhận Đăng xuất → xóa token khỏi thiết bị, điều hướng về màn hình
+Đăng nhập.</li>
+<li>Từ màn hình Đăng nhập sau khi đăng xuất, nhấn Back → KHÔNG quay lại được
+Danh sách Task trước đó.</li>
+<li>Mở lại app sau khi đăng xuất → phải đăng nhập lại.</li>
+</ul>
+<h4 id="fr-04-tự-động-xử-lý-khi-phiên-hết-hạn-us-04">FR-04 — Tự động xử lý khi phiên hết hạn (US-04)</h4>
+<p><strong>User Story:</strong> As a người dùng đang sử dụng app, I want được thông báo và
+tự động đưa về màn hình Đăng nhập khi phiên hết hạn, so that tôi không bị
+kẹt ở trạng thái thao tác thất bại mà không hiểu lý do.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Server trả <code>401</code> ở bất kỳ API task nào → hiển thị &quot;Phiên đăng nhập đã hết
+hạn, vui lòng đăng nhập lại&quot;, xóa token cũ, tự động điều hướng về Đăng
+nhập.</li>
+<li>Nếu đang nhập dở dữ liệu ở form Tạo/Sửa task khi phiên hết hạn → hiển thị
+thông báo kèm cảnh báo dữ liệu chưa lưu sẽ mất, sau đó điều hướng về Đăng
+nhập (chấp nhận mất dữ liệu — tình huống bất thường, không cần cơ chế
+khôi phục).</li>
+</ul>
+<h4 id="fr-05-quên-mật-khẩu-us-05">FR-05 — Quên mật khẩu (US-05)</h4>
+<blockquote>
+<p>Ghi chú: đây là phần <strong>mở rộng</strong> so với worksheet gốc, bổ sung do quyết
+định mở rộng phạm vi sang full-stack + đăng ký/đăng nhập/đăng xuất đầy
+đủ (xem Phụ lục mục 10.1).</p>
+</blockquote>
+<p><strong>User Story:</strong> As a người dùng đã đăng ký nhưng quên mật khẩu, I want yêu
+cầu đặt lại mật khẩu qua email, so that tôi khôi phục được quyền truy cập
+tài khoản mà không cần tạo tài khoản mới.</p>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Từ màn hình Đăng nhập, chọn &quot;Quên mật khẩu&quot; → mở màn hình nhập email.</li>
+<li>Nhập email hợp lệ → nhấn Gửi → gọi API <code>forgot-password</code> → hiển thị
+thông báo &quot;Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn
+đặt lại mật khẩu&quot; (không tiết lộ email có tồn tại hay không, vì lý do bảo
+mật) → điều hướng về màn hình nhập mã xác nhận + mật khẩu mới.</li>
+<li>Email để trống hoặc sai định dạng → lỗi inline, KHÔNG gọi API.</li>
+<li>Màn hình đặt mật khẩu mới: nhập mã xác nhận (OTP) + mật khẩu mới + xác
+nhận mật khẩu mới → nhấn Xác nhận → gọi API <code>reset-password</code> → thành công
+→ thông báo &quot;Đặt lại mật khẩu thành công&quot; → điều hướng về màn hình Đăng
+nhập.</li>
+<li>Mã xác nhận sai/hết hạn → lỗi inline &quot;Mã xác nhận không đúng hoặc đã hết
+hạn&quot;.</li>
+<li>Mật khẩu mới không đạt yêu cầu tối thiểu hoặc xác nhận không khớp → lỗi
+inline, KHÔNG gọi API.</li>
+<li>Mất mạng/server lỗi ở bất kỳ bước nào → thông báo lỗi mạng rõ ràng, không
+crash.</li>
+</ul>
+<h3 id="32-epic-b-xem-danh-sách-task">3.2 Epic B — Xem danh sách Task</h3>
+<h4 id="fr-06-xem-danh-sách-task-của-chính-mình-us-06">FR-06 — Xem danh sách task của chính mình (US-06)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Đã đăng nhập, có task → mở Danh sách Task → hiển thị toàn bộ task thuộc
+về mình, không hiển thị task người khác.</li>
+<li>Đang tải → hiển thị loading state.</li>
+<li>Mỗi task hiển thị title + trạng thái open/done bằng dấu hiệu trực quan
+(gạch ngang cho task done).</li>
+<li>Description hiển thị rút gọn 1 dòng (truncate + ellipsis) ngay trong danh
+sách.</li>
+</ul>
+<h4 id="fr-07-lọc-task-theo-trạng-thái-allopendone-us-07">FR-07 — Lọc task theo trạng thái All/Open/Done (US-07)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>UI dùng FilterChip hàng ngang phía trên danh sách (All/Open/Done).</li>
+<li>Chọn &quot;Open&quot; → chỉ hiển thị task open. Chọn &quot;All&quot; → hiển thị lại toàn bộ.</li>
+<li>Đang lọc mà không có task thỏa điều kiện → empty-state riêng theo ngữ
+cảnh bộ lọc (khác với trường hợp hoàn toàn chưa có task nào).</li>
+<li>Đang lọc Open/Done, một task bị toggle khiến không còn thỏa điều kiện lọc
+hiện tại → task đó biến mất khỏi danh sách ngay lập tức.</li>
+</ul>
+<h4 id="fr-08-pull-to-refresh-danh-sách-task-us-08">FR-08 — Pull-to-refresh danh sách task (US-08)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Vuốt kéo xuống từ đầu danh sách → hiển thị chỉ báo refresh, gọi lại API,
+giữ nguyên bộ lọc đang áp dụng.</li>
+<li>Refresh thành công → danh sách cập nhật theo dữ liệu mới.</li>
+<li>Refresh lỗi → chỉ báo biến mất, danh sách cũ giữ nguyên, hiển thị thông
+báo lỗi.</li>
+<li>App quay lại foreground từ background → KHÔNG tự động refresh, giữ dữ
+liệu đã có (chỉ refresh khi người dùng chủ động pull-to-refresh).</li>
+</ul>
+<h4 id="fr-09-empty-state-khi-không-có-task-us-09">FR-09 — Empty-state khi không có task (US-09)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Chưa từng tạo task nào → hiển thị &quot;Bạn chưa có task nào. Nhấn + để tạo
+task đầu tiên.&quot; kèm gợi ý hành động.</li>
+<li>Đang lọc Open/Done không có task thỏa điều kiện nhưng tổng thể vẫn có
+task khác → empty-state phù hợp ngữ cảnh bộ lọc, khác thông điệp với
+trường hợp trên.</li>
+</ul>
+<h4 id="fr-10-xử-lý-lỗi-mạng-khi-tải-danh-sách-us-10">FR-10 — Xử lý lỗi mạng khi tải danh sách (US-10)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Không có mạng, mở lần đầu chưa có dữ liệu cũ → hiển thị lỗi rõ ràng
+(&quot;Không có kết nối mạng&quot;) kèm nút &quot;Thử lại&quot;.</li>
+<li>Server trả <code>401</code> → xử lý theo FR-04, không hiển thị như lỗi mạng thông
+thường.</li>
+<li>Server trả lỗi khác (<code>500</code>, timeout) → thông báo lỗi chung kèm nút Thử
+lại, không crash.</li>
+</ul>
+<h3 id="33-epic-c-tạo-task">3.3 Epic C — Tạo Task</h3>
+<h4 id="fr-11-tạo-task-mới-us-11">FR-11 — Tạo task mới (US-11)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Từ Danh sách Task, nhấn nút Thêm (+) → mở màn hình riêng (full-screen)
+&quot;Tạo Task&quot; với 2 ô: Title, Description.</li>
+<li>Nhập Title hợp lệ (không rỗng/không chỉ khoảng trắng) → nhấn Lưu →
+validate client OK → gửi request tạo → thành công → đóng màn hình, quay
+lại danh sách, task mới hiển thị (trạng thái open mặc định) kèm thông báo
+thành công.</li>
+<li>Title để trống hoặc chỉ khoảng trắng → lỗi inline &quot;Tiêu đề không được để
+trống&quot; ngay trên client, KHÔNG gọi API.</li>
+<li>Description trống → vẫn tạo task bình thường (tùy chọn).</li>
+<li>Đang gửi → nút Lưu loading/disable, chống tạo trùng.</li>
+<li>Server trả <code>400</code> dù client đã validate → hiển thị lỗi tương ứng trên
+form, giữ dữ liệu đã nhập.</li>
+<li>Mất mạng/server lỗi → thông báo lỗi mạng, giữ dữ liệu đã nhập, màn hình
+vẫn mở để thử lại.</li>
+<li>Xoay màn hình khi đang nhập → dữ liệu Title/Description không bị mất.</li>
+</ul>
+<h3 id="34-epic-d-sửa-toggle-task">3.4 Epic D — Sửa &amp; Toggle Task</h3>
+<h4 id="fr-12-sửa-titledescription-của-task-us-12">FR-12 — Sửa title/description của task (US-12)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Chạm vào dòng task (không phải vào checkbox trạng thái) → mở màn hình
+riêng (full-screen) &quot;Sửa Task&quot; với Title/Description điền sẵn.</li>
+<li>Sửa Title hợp lệ → Lưu → cập nhật thành công → đóng màn hình, danh sách
+hiển thị thông tin mới kèm thông báo thành công.</li>
+<li>Xóa hết Title hoặc chỉ khoảng trắng → lỗi inline, KHÔNG gọi API.</li>
+<li>Task đã bị xóa ở thiết bị/phiên khác trước khi Lưu → server trả <code>404</code> →
+hiển thị &quot;Task này không còn tồn tại&quot; → quay lại danh sách đã làm mới
+(loại bỏ task đó).</li>
+<li>Mất mạng/server lỗi khi lưu → thông báo lỗi mạng, giữ nguyên màn hình và
+dữ liệu đã sửa.</li>
+<li>Xoay màn hình khi đang sửa → dữ liệu không bị mất.</li>
+</ul>
+<h4 id="fr-13-toggle-trạng-thái-opendone-us-13">FR-13 — Toggle trạng thái open/done (US-13)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Task đang open, chạm vào checkbox trạng thái → chuyển thành done, UI cập
+nhật ngay, gửi request lên server.</li>
+<li>Task đang done, chạm lại → chuyển về open.</li>
+<li>Chạm nhanh liên tục (double-tap) vào cùng checkbox khi request đầu chưa
+xong → KHÔNG gửi thêm request trùng lặp (disable/ignore input cho tới khi
+có phản hồi).</li>
+<li>Server trả lỗi (mạng/<code>404</code>/khác) → UI rollback về đúng trạng thái trước
+khi toggle, hiển thị thông báo lỗi.</li>
+<li>Task đã bị xóa ở thiết bị khác trước khi toggle → server trả <code>404</code> →
+hiển thị &quot;Task không còn tồn tại&quot;, loại bỏ task khỏi danh sách.</li>
+</ul>
+<h3 id="35-epic-e-xóa-task">3.5 Epic E — Xóa Task</h3>
+<h4 id="fr-14-xóa-task-us-14">FR-14 — Xóa task (US-14)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Trên mỗi dòng task, vuốt ngang (swipe-to-delete) để lộ hành động xóa →
+hiển thị dialog xác nhận &quot;Bạn có chắc muốn xóa task này? Hành động không
+thể hoàn tác.&quot; (Hủy/Xóa).</li>
+<li>Chọn Hủy → đóng dialog, task vẫn còn nguyên trong danh sách (vị trí/trạng
+thái swipe reset lại).</li>
+<li>Chọn Xóa → gửi request xóa → thành công → task biến mất khỏi danh sách
+ngay lập tức kèm thông báo thành công.</li>
+<li>Server trả <code>404</code> (task đã bị xóa từ trước ở nơi khác) → thông báo &quot;Task
+này đã được xóa trước đó&quot;, đảm bảo task biến mất khỏi danh sách hiện tại.</li>
+<li>Mất mạng/server lỗi khi xóa → thông báo lỗi mạng, task VẪN còn trong danh
+sách cho tới khi server xác nhận thành công (không xóa UI trước rồi
+rollback, đúng tinh thần online-only).</li>
+</ul>
+<h3 id="36-epic-f-xử-lý-ngoại-lệ-ownershipdữ-liệu-lỗi-thời">3.6 Epic F — Xử lý ngoại lệ ownership/dữ liệu lỗi thời</h3>
+<h4 id="fr-15-xử-lý-khi-thao-tác-với-task-không-hợp-lệ-us-15">FR-15 — Xử lý khi thao tác với task không hợp lệ (US-15)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Dữ liệu trên thiết bị có task A (tải trước đó) nhưng đã bị xóa ở thiết bị
+khác → Sửa/Toggle/Xóa task A → server trả <code>404</code> → hiển thị &quot;Task này
+không còn tồn tại&quot; → tự động loại bỏ task A khỏi danh sách hiển thị.</li>
+<li>Server trả <code>403</code> cho một thao tác (trường hợp bất thường) → hiển thị
+&quot;Bạn không có quyền thực hiện thao tác này&quot;, không thay đổi UI.</li>
+<li>Lỗi <code>403</code>/<code>404</code> → KHÔNG hiển thị màn hình lỗi toàn trang gây gián đoạn,
+chỉ thông báo cục bộ (toast/snackbar/dialog) rồi quay lại danh sách.</li>
+</ul>
+<p><strong>Ghi chú:</strong> Vì <code>GET /tasks</code> chỉ trả task của chính chủ sở hữu và app không
+có deep-link/nhập ID thủ công, lỗi <code>403</code>/<code>404</code> thực tế chủ yếu phát sinh khi
+dữ liệu trên thiết bị đã lỗi thời (task bị xóa ở phiên/thiết bị khác), không
+phải do người dùng cố ý truy cập trái phép qua UI.</p>
+<h3 id="37-epic-g-phản-hồi-hiệu-năng-khi-thao-tác-traceability-với-nfr">3.7 Epic G — Phản hồi &amp; hiệu năng khi thao tác (traceability với NFR)</h3>
+<blockquote>
+<p>Hai mục dưới đây được mô tả dưới dạng User Story/AC trong input gốc, có
+nội dung thuộc bản chất phi chức năng. Được giữ ở đây để truy vết đầy đủ
+theo đúng cấu trúc Epic đã làm rõ; nội dung tương ứng cũng được phản ánh
+lại dưới dạng NFR ở mục 4.</p>
+</blockquote>
+<h4 id="fr-16-phản-hồi-tức-thời-cho-mọi-thao-tác-ghi-us-16">FR-16 — Phản hồi tức thời cho mọi thao tác ghi (US-16)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Mọi thao tác ghi (tạo/sửa/toggle/xóa) đang gửi → UI thể hiện trạng thái
+đang xử lý (loading cục bộ trên nút/item).</li>
+<li>Thành công → phản hồi ngắn gọn (toast/snackbar), tự biến mất sau vài
+giây.</li>
+<li>Thất bại → thông báo lỗi tương ứng theo story liên quan.</li>
+</ul>
+<h4 id="fr-17-hiệu-năng-cuộn-danh-sách-us-17">FR-17 — Hiệu năng cuộn danh sách (US-17)</h4>
+<p><strong>Acceptance Criteria:</strong></p>
+<ul>
+<li>Danh sách vài chục task (ví dụ 50) → cuộn không giật/khựng ở mức người
+dùng thông thường nhận thấy.</li>
+<li>App chuyển từ background ra foreground khi danh sách đang hiển thị → vẫn
+hiển thị đúng dữ liệu đã có, không crash/trắng màn hình.</li>
+</ul>
+<hr />
+<h2 id="4-yêu-cầu-phi-chức-năng">4. Yêu cầu phi chức năng</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Mã</th>
+<th>Nội dung</th>
+<th>Nguồn</th>
+<th>Trạng thái</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>NFR-1</td>
+<td>List rendering phải mượt với danh sách vài chục task (ví dụ ~50 task); không có số liệu đo (fps/ms) cụ thể trong input.</td>
+<td>Mục 6 input; FR-17/US-17</td>
+<td>Đã xác định (mức thô)</td>
+</tr>
+<tr>
+<td>NFR-2</td>
+<td>Mọi thao tác ghi (tạo/sửa/toggle/xóa) phải có phản hồi rõ ràng cho người dùng (toast/snackbar thành công hoặc lỗi).</td>
+<td>Mục 6 input; FR-16/US-16</td>
+<td>Đã xác định</td>
+</tr>
+<tr>
+<td>NFR-3</td>
+<td>Bảo mật: email/mật khẩu không được log dạng plaintext; không hiển thị mật khẩu rõ trên UI; JWT token phải được lưu an toàn trên thiết bị (cơ chế lưu trữ cụ thể thuộc về thiết kế kỹ thuật, không đi sâu ở SRS).</td>
+<td>Mục 6 input</td>
+<td>Đã xác định (mức nguyên tắc, chưa có cơ chế kỹ thuật cụ thể)</td>
+</tr>
+<tr>
+<td>NFR-4</td>
+<td>Bảo mật mật khẩu backend: mật khẩu phải được hash (không lưu plaintext); validate email format và độ mạnh mật khẩu tối thiểu 8 ký tự gồm ít nhất 1 chữ và 1 số.</td>
+<td>Mục 5 input</td>
+<td>Đã xác định</td>
+</tr>
+<tr>
+<td>NFR-5</td>
+<td>Ngôn ngữ/giao diện: không hỗ trợ đa ngôn ngữ, không yêu cầu dark mode, không yêu cầu accessibility đặc biệt (TalkBack...) ở v1 — ghi nhận là ngoài phạm vi v1, có thể bổ sung sau.</td>
+<td>Mục 6 input</td>
+<td>Đã xác định (ở dạng loại trừ phạm vi)</td>
+</tr>
+<tr>
+<td>NFR-6</td>
+<td>Thời gian phản hồi API cụ thể (response time SLA, ví dụ p95 bao nhiêu ms)</td>
+<td>—</td>
+<td><strong>Chưa xác định — cần bổ sung</strong></td>
+</tr>
+<tr>
+<td>NFR-7</td>
+<td>Khả năng mở rộng / số lượng người dùng đồng thời hệ thống backend cần chịu tải</td>
+<td>—</td>
+<td><strong>Chưa xác định — cần bổ sung</strong></td>
+</tr>
+<tr>
+<td>NFR-8</td>
+<td>Tuân thủ dữ liệu / quy định bảo mật dữ liệu cá nhân (ví dụ GDPR hoặc quy định tương đương)</td>
+<td>—</td>
+<td><strong>Chưa xác định — cần bổ sung</strong></td>
+</tr>
+<tr>
+<td>NFR-9</td>
+<td>Phiên bản Android tối thiểu hỗ trợ (minSdkVersion), độ phân giải/kích thước màn hình tối thiểu</td>
+<td>—</td>
+<td><strong>Chưa xác định — cần bổ sung</strong></td>
+</tr>
+<tr>
+<td>NFR-10</td>
+<td>Tính khả dụng (uptime/availability) của backend</td>
+<td>—</td>
+<td><strong>Chưa xác định — cần bổ sung</strong></td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="5-data-model">5. Data Model</h2>
+<p>Giữ nguyên từ đặc tả gốc, không thay đổi.</p>
+<h3 id="51-task">5.1 Task</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>UUID/int</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>ownerId</code></td>
+<td>reference</td>
+<td>Indexed; liên kết tới user</td>
+</tr>
+<tr>
+<td><code>title</code></td>
+<td>string</td>
+<td>Required, non-empty, trimmed</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td>string</td>
+<td>Optional</td>
+</tr>
+<tr>
+<td><code>status</code></td>
+<td>enum</td>
+<td><code>open</code> | <code>done</code> (mặc định <code>open</code>)</td>
+</tr>
+<tr>
+<td><code>createdAt</code> / <code>updatedAt</code></td>
+<td>timestamp</td>
+<td>Quản lý tự động</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="52-user-bổ-sung-do-scope-auth">5.2 User (bổ sung do scope Auth)</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Constraints</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>id</code></td>
+<td>UUID/int</td>
+<td>Primary key</td>
+</tr>
+<tr>
+<td><code>email</code></td>
+<td>string</td>
+<td>Unique</td>
+</tr>
+<tr>
+<td><code>passwordHash</code></td>
+<td>string</td>
+<td>Không lưu plaintext (xem NFR-4)</td>
+</tr>
+<tr>
+<td><code>createdAt</code></td>
+<td>timestamp</td>
+<td>Quản lý tự động</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="6-api-contract">6. API Contract</h2>
+<h3 id="61-task-giữ-nguyên-nguyên-văn-từ-đặc-tả-gốc">6.1 Task (giữ nguyên nguyên văn từ đặc tả gốc)</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Purpose</th>
+<th>Success</th>
+<th>Errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POST</td>
+<td><code>/tasks</code></td>
+<td>Tạo task</td>
+<td><code>201</code></td>
+<td><code>400</code>, <code>401</code></td>
+</tr>
+<tr>
+<td>GET</td>
+<td><code>/tasks</code></td>
+<td>List task của chính mình (tùy chọn <code>?status=</code>)</td>
+<td><code>200</code></td>
+<td><code>401</code></td>
+</tr>
+<tr>
+<td>PUT</td>
+<td><code>/tasks/:id</code></td>
+<td>Update/toggle task</td>
+<td><code>200</code></td>
+<td><code>400</code>, <code>403/404</code></td>
+</tr>
+<tr>
+<td>DELETE</td>
+<td><code>/tasks/:id</code></td>
+<td>Xóa task</td>
+<td><code>204</code></td>
+<td><code>403/404</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="62-auth-bổ-sung-mới-mở-rộng-ngoài-worksheet-gốc">6.2 Auth (bổ sung mới — mở rộng ngoài worksheet gốc)</h3>
+<blockquote>
+<p>Phần này được bổ sung do phạm vi full-stack + login/register/forgot
+password đã chốt; ghi rõ đây là phần mở rộng ngoài worksheet gốc
+<code>Task2_Task_ToDo_CRUD.pdf</code>.</p>
+</blockquote>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Endpoint</th>
+<th>Purpose</th>
+<th>Success</th>
+<th>Errors</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>POST</td>
+<td><code>/auth/register</code></td>
+<td>Đăng ký tài khoản (email, password)</td>
+<td><code>201</code></td>
+<td><code>400</code> (validate), <code>409</code> (email đã tồn tại)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/auth/login</code></td>
+<td>Đăng nhập, trả về JWT token</td>
+<td><code>200</code></td>
+<td><code>400</code>, <code>401</code> (sai email/mật khẩu)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/auth/forgot-password</code></td>
+<td>Yêu cầu đặt lại mật khẩu (gửi email chứa mã/link)</td>
+<td><code>200</code></td>
+<td><code>400</code>, <code>404</code> (email không tồn tại — <strong>khuyến nghị bảo mật</strong>: cân nhắc trả <code>200</code> chung để tránh lộ thông tin tài khoản tồn tại, xem FR-05/AC)</td>
+</tr>
+<tr>
+<td>POST</td>
+<td><code>/auth/reset-password</code></td>
+<td>Đặt mật khẩu mới bằng mã xác nhận</td>
+<td><code>200</code></td>
+<td><code>400</code> (mã sai/hết hạn, mật khẩu không hợp lệ)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Mọi API <code>/tasks/*</code> đều yêu cầu header <code>Authorization: Bearer &lt;token&gt;</code>; token
+không hợp lệ/hết hạn → <code>401</code> (xem FR-04).</p>
+<h3 id="63-yêu-cầu-backend-liên-quan-giữ-nguyên-nguyên-văn-từ-đặc-tả-gốc">6.3 Yêu cầu backend liên quan (giữ nguyên nguyên văn từ đặc tả gốc)</h3>
+<ul>
+<li>Enforce ownership trên mọi read/write — user không được truy cập task
+người khác.</li>
+<li>Validate field bắt buộc; reject title rỗng/chỉ-khoảng-trắng.</li>
+<li>Trả <code>404</code> cho ID không tồn tại, <code>403/404</code> cho truy cập chéo owner.</li>
+<li>Hỗ trợ filter theo status trên list endpoint.</li>
+<li>(Bổ sung do scope Auth) Mật khẩu phải được hash; validate email format và
+độ mạnh mật khẩu tối thiểu 8 ký tự gồm ít nhất 1 chữ và 1 số; có ô &quot;Xác
+nhận mật khẩu&quot; khi đăng ký và khi đặt lại mật khẩu.</li>
+</ul>
+<hr />
+<h2 id="7-edge-cases-test-scenarios">7. Edge Cases &amp; Test Scenarios</h2>
+<h3 id="71-unit-test-scenarios-gốc-givenwhenthen-giữ-nguyên-từ-worksheet-gốc">7.1 Unit Test Scenarios gốc (Given/When/Then — giữ nguyên từ worksheet gốc)</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Given</th>
+<th>When</th>
+<th>Then</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>Title rỗng/khoảng-trắng</td>
+<td>Create được gọi</td>
+<td>Validation fail, trả <code>400</code></td>
+</tr>
+<tr>
+<td>2</td>
+<td>Task của user A</td>
+<td>User B update/delete</td>
+<td>Bị từ chối, <code>403/404</code></td>
+</tr>
+<tr>
+<td>3</td>
+<td>Task đang <code>open</code></td>
+<td>Toggle được gọi</td>
+<td>Chuyển thành <code>done</code> (và ngược lại)</td>
+</tr>
+<tr>
+<td>4</td>
+<td>Task ID không tồn tại</td>
+<td>Delete được gọi</td>
+<td>Trả <code>404</code></td>
+</tr>
+<tr>
+<td>5</td>
+<td>Nhiều task mixed status</td>
+<td>List với <code>?status=open</code></td>
+<td>Chỉ trả task <code>open</code></td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="72-edge-cases-bổ-sung-đặc-thù-mobile-từ-làm-rõ-yêu-cầu">7.2 Edge Cases bổ sung đặc thù mobile (từ làm rõ yêu cầu)</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Mô tả</th>
+<th>Liên quan FR</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>6</td>
+<td>Chạm nhanh liên tục (double-tap) vào checkbox toggle → chỉ 1 request được gửi</td>
+<td>FR-13</td>
+</tr>
+<tr>
+<td>7</td>
+<td>Xoay màn hình khi đang nhập form Tạo/Sửa → dữ liệu không mất</td>
+<td>FR-11, FR-12</td>
+</tr>
+<tr>
+<td>8</td>
+<td>Mất mạng giữa chừng khi đang submit thao tác ghi → hiển thị lỗi, không mất dữ liệu đã nhập (Tạo/Sửa) hoặc không xóa task khỏi UI trước khi server xác nhận (Xóa)</td>
+<td>FR-11, FR-12, FR-14</td>
+</tr>
+<tr>
+<td>9</td>
+<td>Token hết hạn (<code>401</code>) trong khi đang ở màn hình bất kỳ → tự động điều hướng về Đăng nhập</td>
+<td>FR-04</td>
+</tr>
+<tr>
+<td>10</td>
+<td>Xóa task đã bị xóa ở thiết bị/phiên khác (<code>404</code> khi xóa) → thông báo phù hợp, không phải lỗi chung chung</td>
+<td>FR-14, FR-15</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="8-phạm-vi">8. Phạm vi</h2>
+<h3 id="81-trong-phạm-vi">8.1 Trong phạm vi</h3>
+<ul>
+<li>Đăng ký, Đăng nhập, Đăng xuất, Quên mật khẩu (reset qua email/OTP) bằng
+email/mật khẩu; JWT lưu trên thiết bị; giữ phiên đăng nhập; tự động điều
+hướng về Đăng nhập khi token hết hạn.</li>
+<li>CRUD đầy đủ cho task: tạo, xem danh sách (của chính mình), sửa
+title/description, toggle open/done, xóa (swipe-to-delete).</li>
+<li>Lọc danh sách theo trạng thái All/Open/Done (FilterChip).</li>
+<li>Pull-to-refresh, empty-state, loading-state, error-state cho danh sách và
+các màn hình tạo/sửa.</li>
+<li>Ownership enforcement phía UI (<code>403</code>/<code>404</code>) và xử lý dữ liệu lỗi thời.</li>
+<li>Chống double-tap/double-submit cho toggle và các thao tác ghi khác.</li>
+<li>Giữ dữ liệu form khi xoay màn hình.</li>
+<li>Backend REST API cho Task (theo contract gốc) và Auth (bổ sung, mục 6.2).</li>
+</ul>
+<h3 id="82-ngoài-phạm-vi">8.2 Ngoài phạm vi</h3>
+<ul>
+<li>Cache/lưu trữ task offline, đồng bộ nền (đã chốt online-only).</li>
+<li>Đăng nhập mạng xã hội/OAuth.</li>
+<li>Tìm kiếm, sắp xếp, due date/reminder, nhãn/category, chia sẻ/cộng tác
+task.</li>
+<li>Deep-link tới task cụ thể từ ngoài app.</li>
+<li>Quản lý hồ sơ người dùng (đổi email, avatar) sau đăng ký.</li>
+<li>Đa ngôn ngữ, dark mode, accessibility đặc biệt (TalkBack...) ở v1.</li>
+<li>Inline-edit kiểu web — đã thay bằng màn hình Sửa riêng phù hợp mobile.</li>
+</ul>
+<hr />
+<h2 id="9-giao-diện-ngoài">9. Giao diện ngoài</h2>
+<ul>
+<li><strong>API REST giữa Android app và Backend</strong>: xem chi tiết đầy đủ ở mục 6
+(API Contract) — đây là giao diện ngoài chính của hệ thống, giao tiếp qua
+HTTP/JSON, xác thực bằng JWT trong header <code>Authorization: Bearer &lt;token&gt;</code>.</li>
+<li><strong>Dịch vụ gửi email</strong> (phục vụ FR-05 — Quên mật khẩu): Backend cần tích
+hợp với một dịch vụ gửi email để gửi mã/link đặt lại mật khẩu. Input
+không nêu cụ thể nhà cung cấp dịch vụ email hay cơ chế kỹ thuật (SMTP,
+API bên thứ ba...) — nội dung này thuộc phạm vi thiết kế kỹ thuật, không
+đi sâu ở SRS.</li>
+<li>Không có tích hợp hệ thống ngoài nào khác được input đề cập (không có
+đăng nhập mạng xã hội/OAuth, không có push notification, không có tích
+hợp thanh toán...).</li>
+</ul>
+<hr />
+<h2 id="10-phụ-lục">10. Phụ lục</h2>
+<h3 id="101-quyết-định-đã-chốt-xác-nhận-trực-tiếp-bởi-stakeholder">10.1 Quyết định đã chốt (xác nhận trực tiếp bởi stakeholder)</h3>
+<p>Các điểm dưới đây là <strong>quyết định đã được stakeholder xác nhận trực tiếp</strong>
+trong quá trình làm rõ yêu cầu (qua <code>requirements-analyst</code>), không phải suy
+đoán của người viết SRS:</p>
+<ul>
+<li>Phạm vi kiến trúc là <strong>full-stack</strong> (backend + Android app), mở rộng so
+với worksheet gốc vốn chỉ nói chung chung &quot;Front-End Requirements&quot;.</li>
+<li>Có đầy đủ Đăng ký/Đăng nhập/Đăng xuất dùng JWT lưu trên thiết bị — worksheet
+gốc chỉ giả định &quot;logged-in user&quot; mà không mô tả luồng xác thực.</li>
+<li>Bổ sung thêm luồng <strong>Quên mật khẩu</strong> (FR-05, API <code>/auth/forgot-password</code>
+và <code>/auth/reset-password</code>) — hoàn toàn không có trong worksheet gốc.</li>
+<li>Mô hình hoạt động là <strong>online-only</strong>, không cache offline — là một quyết
+định rõ ràng cắt giảm phạm vi so với các ứng dụng to-do thông thường
+(thường có offline-first).</li>
+<li>Màn hình Tạo/Sửa task dùng <strong>màn hình riêng (full-screen)</strong>, không dùng
+&quot;inline-edit&quot; như gợi ý trong mục Front-End Requirements của worksheet
+gốc — điều chỉnh này đã được xác nhận là phù hợp hơn với UX mobile.</li>
+<li>Cơ chế xóa task dùng <strong>swipe-to-delete</strong> kèm dialog xác nhận — cụ thể hóa
+hơn so với &quot;delete controls&quot; chung chung trong worksheet gốc.</li>
+<li>Về nguyên tắc optimistic UI: worksheet gốc yêu cầu chung &quot;Optimistic UI
+update (or refresh) after each operation, with rollback on error&quot; cho
+mọi thao tác. Bản làm rõ đã cụ thể hóa khác nhau theo từng thao tác:
+<ul>
+<li><strong>Toggle</strong> (FR-13): áp dụng optimistic update — UI đổi trạng thái ngay,
+rollback nếu server lỗi.</li>
+<li><strong>Create/Edit/Delete</strong> (FR-11, FR-12, FR-14): KHÔNG áp dụng optimistic
+update — chờ xác nhận thành công từ server rồi mới cập nhật UI (đặc
+biệt rõ với Delete: task vẫn còn trong danh sách cho tới khi có xác
+nhận xóa thành công). Đây là lựa chọn nhất quán với nguyên tắc
+online-only đã chốt, đã được xác nhận bởi stakeholder — không phải mâu
+thuẫn chưa giải quyết.</li>
+</ul>
+</li>
+<li>Forgot-password trả về thông báo chung chung &quot;Nếu email tồn tại trong hệ
+thống...&quot; dù email có tồn tại hay không, theo khuyến nghị bảo mật tránh
+lộ thông tin tài khoản tồn tại — đã được ghi nhận là khuyến nghị, cần xác
+nhận lại với bên thiết kế bảo mật khi triển khai thực tế mã trả về
+(<code>200</code> chung hay <code>404</code> như bảng mục 6.2 liệt kê — xem câu hỏi mở 10.2).</li>
+</ul>
+<h3 id="102-câu-hỏi-còn-mở-cần-làm-rõ-thêm">10.2 Câu hỏi còn mở / cần làm rõ thêm</h3>
+<ul>
+<li>Bảng API Contract — Auth (mục 6.2) liệt kê <code>404</code> là một trong các error
+code khả dĩ của <code>/auth/forgot-password</code>, nhưng ngay trong cùng mục lại
+khuyến nghị bảo mật là &quot;trả <code>200</code> chung để tránh lộ thông tin tài khoản
+tồn tại&quot;. Đây là điểm cần làm rõ lại với bên thiết kế API/bảo mật: liệu
+<code>404</code> có thực sự được dùng khi email không tồn tại (rủi ro lộ thông tin),
+hay toàn bộ trường hợp đều trả <code>200</code> kèm thông điệp trung lập như AC của
+FR-05 mô tả. SRS này ghi nhận cả hai cách hiểu, không tự chọn phương án.</li>
+<li>Các mục NFR-6 đến NFR-10 (mục 4) chưa có số liệu/ràng buộc cụ thể từ
+input — cần bổ sung làm rõ (gợi ý dùng <code>requirements-analyst</code>) trước khi
+đưa vào thiết kế kỹ thuật/estimation.</li>
+<li>Cơ chế lưu trữ JWT token cụ thể trên thiết bị Android (ví dụ
+EncryptedSharedPreferences, Android Keystore...) chưa được chốt trong
+input — thuộc phạm vi thiết kế kỹ thuật, không phải SRS, nhưng cần được
+quyết định trước khi triển khai NFR-3.</li>
+<li>Nhà cung cấp/dịch vụ gửi email cho luồng Quên mật khẩu (FR-05) chưa được
+chỉ định — thuộc phạm vi thiết kế kỹ thuật.</li>
+</ul>
+<h3 id="103-gợi-ý-bước-tiếp-theo">10.3 Gợi ý bước tiếp theo</h3>
+<ul>
+<li>Dùng <code>requirements-analyst</code> để làm rõ thêm các mục NFR còn thiếu (NFR-6
+đến NFR-10) và câu hỏi mở về mã lỗi <code>forgot-password</code> (mục 10.2) trước
+khi chốt thiết kế kỹ thuật.</li>
+<li>Sau khi SRS này được review và chốt, dùng <code>project-estimator</code> để ước
+lượng effort/story point cho từng FR (SRS này không gán effort/ưu tiên).</li>
+</ul>
+
+  </article>
+  <nav class="page-toc">
+    <div class="t">Trong trang này</div>
+    <ol>
+      <li><a href="#ứng-dụng-android-mobile-quản-lý-taskto-do-crud">Ứng dụng Android Mobile Quản lý Task/To-Do (CRUD)</a></li>
+      <li><a href="#mục-lục">Mục lục</a></li>
+      <li><a href="#1-giới-thiệu">1. Giới thiệu</a></li>
+      <li class="lvl3"><a href="#11-mục-đích-tài-liệu">1.1 Mục đích tài liệu</a></li>
+      <li class="lvl3"><a href="#12-phạm-vi-tài-liệu">1.2 Phạm vi tài liệu</a></li>
+      <li class="lvl3"><a href="#13-đối-tượng-sử-dụng">1.3 Đối tượng sử dụng</a></li>
+      <li class="lvl3"><a href="#14-định-nghĩa-thuật-ngữ-viết-tắt">1.4 Định nghĩa / Thuật ngữ viết tắt</a></li>
+      <li class="lvl3"><a href="#15-tài-liệu-tham-chiếu">1.5 Tài liệu tham chiếu</a></li>
+      <li><a href="#2-mô-tả-tổng-quan">2. Mô tả tổng quan</a></li>
+      <li class="lvl3"><a href="#21-bối-cảnh-nghiệp-vụ">2.1 Bối cảnh nghiệp vụ</a></li>
+      <li class="lvl3"><a href="#22-đối-tượng-dùng-actor">2.2 Đối tượng dùng / Actor</a></li>
+      <li class="lvl3"><a href="#23-giả-định-ràng-buộc">2.3 Giả định &amp;amp; ràng buộc</a></li>
+      <li><a href="#3-yêu-cầu-chức-năng">3. Yêu cầu chức năng</a></li>
+      <li class="lvl3"><a href="#31-epic-a-xác-thực-authentication">3.1 Epic A — Xác thực (Authentication)</a></li>
+      <li class="lvl3"><a href="#32-epic-b-xem-danh-sách-task">3.2 Epic B — Xem danh sách Task</a></li>
+      <li class="lvl3"><a href="#33-epic-c-tạo-task">3.3 Epic C — Tạo Task</a></li>
+      <li class="lvl3"><a href="#34-epic-d-sửa-toggle-task">3.4 Epic D — Sửa &amp;amp; Toggle Task</a></li>
+      <li class="lvl3"><a href="#35-epic-e-xóa-task">3.5 Epic E — Xóa Task</a></li>
+      <li class="lvl3"><a href="#36-epic-f-xử-lý-ngoại-lệ-ownershipdữ-liệu-lỗi-thời">3.6 Epic F — Xử lý ngoại lệ ownership/dữ liệu lỗi thời</a></li>
+      <li class="lvl3"><a href="#37-epic-g-phản-hồi-hiệu-năng-khi-thao-tác-traceability-với-nfr">3.7 Epic G — Phản hồi &amp;amp; hiệu năng khi thao tác (traceability với NFR)</a></li>
+      <li><a href="#4-yêu-cầu-phi-chức-năng">4. Yêu cầu phi chức năng</a></li>
+      <li><a href="#5-data-model">5. Data Model</a></li>
+      <li class="lvl3"><a href="#51-task">5.1 Task</a></li>
+      <li class="lvl3"><a href="#52-user-bổ-sung-do-scope-auth">5.2 User (bổ sung do scope Auth)</a></li>
+      <li><a href="#6-api-contract">6. API Contract</a></li>
+      <li class="lvl3"><a href="#61-task-giữ-nguyên-nguyên-văn-từ-đặc-tả-gốc">6.1 Task (giữ nguyên nguyên văn từ đặc tả gốc)</a></li>
+      <li class="lvl3"><a href="#62-auth-bổ-sung-mới-mở-rộng-ngoài-worksheet-gốc">6.2 Auth (bổ sung mới — mở rộng ngoài worksheet gốc)</a></li>
+      <li class="lvl3"><a href="#63-yêu-cầu-backend-liên-quan-giữ-nguyên-nguyên-văn-từ-đặc-tả-gốc">6.3 Yêu cầu backend liên quan (giữ nguyên nguyên văn từ đặc tả gốc)</a></li>
+      <li><a href="#7-edge-cases-test-scenarios">7. Edge Cases &amp;amp; Test Scenarios</a></li>
+      <li class="lvl3"><a href="#71-unit-test-scenarios-gốc-givenwhenthen-giữ-nguyên-từ-worksheet-gốc">7.1 Unit Test Scenarios gốc (Given/When/Then — giữ nguyên từ worksheet gốc)</a></li>
+      <li class="lvl3"><a href="#72-edge-cases-bổ-sung-đặc-thù-mobile-từ-làm-rõ-yêu-cầu">7.2 Edge Cases bổ sung đặc thù mobile (từ làm rõ yêu cầu)</a></li>
+      <li><a href="#8-phạm-vi">8. Phạm vi</a></li>
+      <li class="lvl3"><a href="#81-trong-phạm-vi">8.1 Trong phạm vi</a></li>
+      <li class="lvl3"><a href="#82-ngoài-phạm-vi">8.2 Ngoài phạm vi</a></li>
+      <li><a href="#9-giao-diện-ngoài">9. Giao diện ngoài</a></li>
+      <li><a href="#10-phụ-lục">10. Phụ lục</a></li>
+      <li class="lvl3"><a href="#101-quyết-định-đã-chốt-xác-nhận-trực-tiếp-bởi-stakeholder">10.1 Quyết định đã chốt (xác nhận trực tiếp bởi stakeholder)</a></li>
+      <li class="lvl3"><a href="#102-câu-hỏi-còn-mở-cần-làm-rõ-thêm">10.2 Câu hỏi còn mở / cần làm rõ thêm</a></li>
+      <li class="lvl3"><a href="#103-gợi-ý-bước-tiếp-theo">10.3 Gợi ý bước tiếp theo</a></li>
+    </ol>
+  </nav>
+</div>
+
+<footer class="doc-footer">
+  <span>docs/SRS_ToDo_Android.md</span>
+  <span><a href="index.html">&larr; Về trang tổng quan</a></span>
+</footer>
+</body>
+</html>

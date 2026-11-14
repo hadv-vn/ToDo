@@ -1,0 +1,1540 @@
+<!doctype html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Low-Level Design: Ứng dụng Android Quản lý Task/To-Do (CRUD) — Full-Stack · ToDo Android Docs</title>
+<link rel="stylesheet" href="assets/doc.css">
+<script src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"></script>
+<script>mermaid.initialize({startOnLoad:true,theme:"neutral"});</script>
+</head>
+<body>
+<div class="topbar"><div class="topbar-inner">
+  <div class="brand"><span class="mark">📚</span> ToDo Android · Docs</div>
+  <nav class="topnav">
+    <a href="index.html">Tổng quan</a>
+    <a href="readme.html">README</a>
+    <a href="srs.html">SRS</a>
+    <a href="hld.html">HLD</a>
+    <a href="lld.html" class="active">LLD</a>
+    <a href="api-contract.html">API Contract</a>
+    <a href="admin-task-statistics.html">Admin Thống kê</a>
+    <a href="test-scenarios.html">Kịch bản Test</a>
+  </nav>
+</div></div>
+
+<div class="shell">
+  <article>
+    <div class="doc-head">
+      <div class="eyebrow">LLD · Thiết kế chi tiết</div>
+      <h1>Low-Level Design: Ứng dụng Android Quản lý Task/To-Do (CRUD) — Full-Stack</h1>
+      <div class="doc-meta"><span>Nguồn: <code>docs\LLD_ToDo_Android.md</code></span><span>Cập nhật: 2026-10-14</span></div>
+    </div>
+    
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th></th>
+<th></th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>Dự án</strong></td>
+<td>Full-Stack Assessment — Task 2: Task/To-Do CRUD Management</td>
+</tr>
+<tr>
+<td><strong>Phiên bản LLD</strong></td>
+<td>1.0</td>
+</tr>
+<tr>
+<td><strong>Ngày tạo</strong></td>
+<td>2026-10-14</td>
+</tr>
+<tr>
+<td><strong>Nguồn căn cứ</strong></td>
+<td><code>docs/SRS_ToDo_Android.md</code> (v1.0), <code>docs/HLD_ToDo_Android.md</code> (v1.0) + 2 quyết định bổ sung đã chốt (register trả token trực tiếp; forgot-password luôn 200)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h2 id="mục-0-phạm-vi-căn-cứ">Mục 0. Phạm vi &amp; căn cứ</h2>
+<p><strong>Phương án kiến trúc làm căn cứ (đã chốt ở HLD, KHÔNG đổi)</strong>: Backend Node.js+Express+TypeScript, PostgreSQL+Prisma, layer Controller→Service→Prisma; Android Jetpack Compose, Clean Architecture 3 layer, Hilt DI, Retrofit+OkHttp, kotlinx.serialization, DataStore+security-crypto cho token, OkHttp Interceptor+SessionEventBus cho 401 toàn cục, online-only; Testing: Jest+Supertest (backend), JUnit4+MockK+Turbine+Compose UI Testing (Android).</p>
+<p><strong>Bối cảnh code hiện tại</strong>: Repo <code>D:\MyStartUp\ToDo</code> chỉ có file PDF + SRS + HLD, <strong>chưa có code nào</strong> — dự án greenfield, không có convention code cũ cần tuân theo.</p>
+<hr />
+<h1 id="phần-a-backend">PHẦN A — BACKEND</h1>
+<h2 id="1-backend-classmodule-design">1. Backend — Class/Module Design</h2>
+<h3 id="11-cấu-trúc-thư-mục-đề-xuất">1.1 Cấu trúc thư mục đề xuất</h3>
+<pre><code>backend/
+  src/
+    app.ts                         # tạo Express app, đăng ký middleware/route
+    server.ts                      # bootstrap http server, đọc PORT từ env
+    config/
+      env.ts                       # đọc &amp; validate biến môi trường (DATABASE_URL, JWT_SECRET, SMTP_*)
+      prisma.ts                    # export PrismaClient singleton
+    routes/
+      index.ts                     # gộp router auth + task
+      auth.routes.ts
+      task.routes.ts
+    controllers/
+      auth.controller.ts
+      task.controller.ts
+    services/
+      auth.service.ts
+      task.service.ts
+      email.service.ts
+    middlewares/
+      auth.middleware.ts           # authMiddleware
+      validate.middleware.ts       # validateBody / validateQuery (factory, dùng Zod)
+      errorHandler.middleware.ts
+      asyncHandler.ts              # wrap async controller -&gt; forward exception vào errorHandler
+    validators/
+      auth.validators.ts           # Zod schema: register/login/forgotPassword/resetPassword
+      task.validators.ts           # Zod schema: createTask/updateTask/listTaskQuery
+    errors/
+      AppError.ts
+      BadRequestError.ts
+      UnauthorizedError.ts
+      ForbiddenError.ts
+      NotFoundError.ts
+      ConflictError.ts
+    types/
+      express.d.ts                 # augment Request.userId
+      dto.ts                       # TaskDto, AuthResultDto, UserSafeDto... (nội bộ)
+    utils/
+      password.util.ts             # hashPassword/comparePassword (bcrypt)
+      jwt.util.ts                  # signAccessToken/verifyAccessToken
+      otp.util.ts                  # generateNumericOtp/hashOtp/compareOtp
+    prisma/
+      schema.prisma
+      migrations/
+  tests/
+    auth.test.ts
+    task.test.ts
+  package.json
+  tsconfig.json
+  .env.example
+</code></pre>
+<h3 id="12-prisma-schema-ý-tưởng-thiết-kế-không-phải-migration-thật">1.2 Prisma schema (Ý TƯỞNG THIẾT KẾ — không phải migration thật)</h3>
+<pre><code class="language-prisma">datasource db {
+  provider = &quot;postgresql&quot;
+  url      = env(&quot;DATABASE_URL&quot;)
+}
+
+generator client {
+  provider = &quot;prisma-client-js&quot;
+}
+
+enum TaskStatus {
+  open
+  done
+}
+
+model User {
+  id                   String     @id @default(uuid())
+  email                String     @unique
+  passwordHash         String
+  resetOtpHash         String?
+  resetOtpExpiresAt    DateTime?
+  resetOtpAttemptCount Int        @default(0)
+  createdAt            DateTime   @default(now())
+  updatedAt            DateTime   @updatedAt
+  tasks                Task[]
+}
+
+model Task {
+  id          String     @id @default(uuid())
+  ownerId     String
+  owner       User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  title       String
+  description String?
+  status      TaskStatus @default(open)
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  @@index([ownerId])
+  @@index([ownerId, status])
+}
+</code></pre>
+<p><strong>Quyết định LLD — enum <code>TaskStatus</code> dùng giá trị <code>open</code>/<code>done</code> lowercase</strong> (khác convention PascalCase phổ biến của Prisma) để khớp 1:1 với giá trị JSON &quot;open&quot;/&quot;done&quot; mà AC/SRS dùng xuyên suốt, tránh thêm một lớp mapping chữ hoa/thường giữa DB ↔ Service ↔ JSON response.</p>
+<h3 id="13-quyết-định-cấu-trúc-lưu-otp-cho-forgot-password">1.3 Quyết định: cấu trúc lưu OTP cho forgot-password</h3>
+<p><strong>Phương án chọn: thêm field vào bảng <code>User</code></strong> (<code>resetOtpHash</code>, <code>resetOtpExpiresAt</code>, <code>resetOtpAttemptCount</code>) — <strong>không</strong> tạo bảng <code>PasswordResetToken</code> riêng.</p>
+<p><strong>Lý do:</strong></p>
+<ul>
+<li>Nghiệp vụ chỉ cần &quot;1 OTP đang hiệu lực tại một thời điểm cho mỗi user&quot; (yêu cầu OTP mới ghi đè OTP cũ) — quan hệ 1-1, không cần lưu lịch sử nhiều token/audit trail mà SRS không yêu cầu.</li>
+<li>Tránh JOIN thêm bảng ở mọi lần <code>reset-password</code> (vốn đã phải tìm <code>User</code> theo email trước).</li>
+<li>Giảm số migration/bảng cho scope demo/học thuật hiện tại (NFR-6..10 về scale chưa xác định — không có lý do kỹ thuật nào buộc phải tách bảng).</li>
+<li>Nhược điểm đã cân nhắc: nếu sau này cần audit lịch sử yêu cầu reset hoặc rate-limit theo IP/thiết bị phức tạp hơn, bảng riêng sẽ linh hoạt hơn — ghi nhận là điểm cần xem lại nếu NFR về bảo mật/audit được bổ sung sau.</li>
+</ul>
+<p><strong>TTL và tham số đề xuất</strong> (giả định, cần stakeholder xác nhận — SRS không có NFR cụ thể):</p>
+<ul>
+<li><code>OTP_LENGTH = 6</code> (numeric).</li>
+<li><code>OTP_TTL_MINUTES = 10</code>.</li>
+<li><code>MAX_OTP_ATTEMPTS = 5</code> — vượt quá: tự xóa OTP hiện tại (buộc người dùng yêu cầu lại), tránh brute-force không giới hạn trên không gian 10^6 giá trị.</li>
+<li>OTP được <strong>hash bằng bcrypt</strong> trước khi lưu (không lưu plaintext trong DB), và bị <strong>xóa ngay sau khi dùng thành công</strong> (one-time use).</li>
+</ul>
+<h3 id="14-error-hierarchy-error-handling-tập-trung">1.4 Error hierarchy &amp; error handling tập trung</h3>
+<pre class="mermaid">classDiagram
+  class AppError {
+    +statusCode: number
+    +isOperational: boolean
+    +details: unknown
+  }
+  class BadRequestError
+  class UnauthorizedError
+  class ForbiddenError
+  class NotFoundError
+  class ConflictError
+  AppError &lt;|-- BadRequestError
+  AppError &lt;|-- UnauthorizedError
+  AppError &lt;|-- ForbiddenError
+  AppError &lt;|-- NotFoundError
+  AppError &lt;|-- ConflictError
+</pre>
+<ul>
+<li><code>AppError(message: string, statusCode: number, details?: unknown)</code> — base class, <code>isOperational = true</code> để errorHandler phân biệt lỗi &quot;đã biết trước, an toàn trả message cho client&quot; với lỗi hệ thống bất ngờ.</li>
+<li><code>BadRequestError</code> → 400 (validate fail, OTP sai/hết hạn, update task thiếu field).</li>
+<li><code>UnauthorizedError</code> → 401 (JWT thiếu/sai/hết hạn, sai email/mật khẩu login).</li>
+<li><code>ForbiddenError</code> → 403 (task tồn tại nhưng không thuộc user hiện tại).</li>
+<li><code>NotFoundError</code> → 404 (task không tồn tại/đã bị xóa).</li>
+<li><code>ConflictError</code> → 409 (email đã tồn tại khi register).</li>
+</ul>
+<p><strong><code>asyncHandler(fn): RequestHandler</code></strong> — bọc mọi controller method async, bắt promise rejection và gọi <code>next(err)</code> thay vì để unhandled rejection; áp dụng đồng nhất cho mọi route (vì Express 4 không tự forward lỗi async).</p>
+<p><strong><code>errorHandler(err, req, res, next): void</code></strong> (middleware cuối cùng trong chain):</p>
+<pre><code># Pseudocode minh họa ý tưởng, không phải code cuối cùng
+function errorHandler(err, req, res, next):
+    if err instanceof AppError and err.isOperational:
+        log.warn({ path: req.path, status: err.statusCode, message: err.message })
+        return res.status(err.statusCode).json({ message: err.message, details: err.details })
+    else:
+        log.error({ path: req.path, error: err })        # log đầy đủ nội bộ, KHÔNG trả cho client
+        if env.NODE_ENV == &quot;production&quot;:
+            return res.status(500).json({ message: &quot;Đã có lỗi xảy ra, vui lòng thử lại sau&quot; })
+        else:
+            return res.status(500).json({ message: err.message, stack: err.stack })  # chỉ dev
+</code></pre>
+<p><strong>Nguyên tắc log</strong>: không bao giờ log <code>password</code>, <code>confirmPassword</code>, OTP plaintext, hay JWT token — log phải mask/loại bỏ các field này trước khi ghi (đáp ứng NFR-3/NFR-4 SRS).</p>
+<h3 id="15-middlewares">1.5 Middlewares</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Middleware</th>
+<th>Signature</th>
+<th>Hành vi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authMiddleware</code></td>
+<td><code>(req, res, next): void</code></td>
+<td>Đọc header <code>Authorization: Bearer &lt;token&gt;</code>; thiếu/sai format → <code>next(new UnauthorizedError(...))</code>; verify qua <code>jwt.util.verifyAccessToken</code>; lỗi verify (hết hạn/sai signature) → <code>next(new UnauthorizedError(...))</code>; thành công → gắn <code>req.userId = payload.sub</code>, <code>next()</code>.</td>
+</tr>
+<tr>
+<td><code>validateBody(schema)</code></td>
+<td><code>(req, res, next): void</code> (factory trả middleware)</td>
+<td><code>schema.safeParse(req.body)</code>; fail → <code>next(new BadRequestError(&quot;Dữ liệu không hợp lệ&quot;, issues))</code>; success → <code>req.body = result.data</code> (dữ liệu đã trim/coerce), <code>next()</code>.</td>
+</tr>
+<tr>
+<td><code>validateQuery(schema)</code></td>
+<td>tương tự <code>validateBody</code> nhưng áp cho <code>req.query</code></td>
+<td>Dùng cho <code>GET /tasks?status=</code>.</td>
+</tr>
+<tr>
+<td><code>errorHandler</code></td>
+<td><code>(err, req, res, next): void</code></td>
+<td>Xem mục 1.4.</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="16-typesexpressdts-ý-tưởng-augmentation">1.6 <code>types/express.d.ts</code> (ý tưởng augmentation)</h3>
+<ul>
+<li>Mở rộng kiểu <code>Request</code> của Express với field <code>userId?: string</code>, được <code>authMiddleware</code> gán trước khi vào Controller. Mọi Controller <code>/tasks/*</code> đọc <code>req.userId!</code> (non-null vì <code>authMiddleware</code> đã short-circuit nếu thiếu).</li>
+</ul>
+<h3 id="17-controllers">1.7 Controllers</h3>
+<pre class="mermaid">classDiagram
+  class AuthController {
+    +register(req, res, next): Promise~void~
+    +login(req, res, next): Promise~void~
+    +forgotPassword(req, res, next): Promise~void~
+    +resetPassword(req, res, next): Promise~void~
+  }
+  class TaskController {
+    +create(req, res, next): Promise~void~
+    +list(req, res, next): Promise~void~
+    +update(req, res, next): Promise~void~
+    +remove(req, res, next): Promise~void~
+  }
+  AuthController --&gt; AuthService : dependency
+  TaskController --&gt; TaskService : dependency
+</pre>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Mô tả hành vi</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>AuthController.register</code></td>
+<td>Gọi <code>authService.register(req.body)</code> → <code>res.status(201).json({ accessToken, user })</code>.</td>
+</tr>
+<tr>
+<td><code>AuthController.login</code></td>
+<td>Gọi <code>authService.login(req.body)</code> → <code>res.status(200).json({ accessToken, user })</code>.</td>
+</tr>
+<tr>
+<td><code>AuthController.forgotPassword</code></td>
+<td>Gọi <code>authService.forgotPassword(req.body.email)</code>. <strong>Bất kể service làm gì bên trong (tìm thấy user hay không), controller LUÔN</strong> <code>res.status(200).json({ message: &quot;Nếu email tồn tại trong hệ thống, bạn sẽ nhận được hướng dẫn đặt lại mật khẩu&quot; })</code> — không branch theo kết quả service.</td>
+</tr>
+<tr>
+<td><code>AuthController.resetPassword</code></td>
+<td>Gọi <code>authService.resetPassword(req.body)</code> → thành công <code>res.status(200).json({ message: &quot;Đặt lại mật khẩu thành công&quot; })</code>; lỗi (OTP sai/hết hạn) service đã <code>throw BadRequestError</code> → <code>asyncHandler</code> forward vào <code>errorHandler</code>.</td>
+</tr>
+<tr>
+<td><code>TaskController.create</code></td>
+<td><code>taskService.create(req.userId!, req.body)</code> → <code>201</code>.</td>
+</tr>
+<tr>
+<td><code>TaskController.list</code></td>
+<td><code>taskService.list(req.userId!, req.query.status)</code> → <code>200</code>.</td>
+</tr>
+<tr>
+<td><code>TaskController.update</code></td>
+<td><code>taskService.update(req.userId!, req.params.id, req.body)</code> → <code>200</code>.</td>
+</tr>
+<tr>
+<td><code>TaskController.remove</code></td>
+<td><code>taskService.remove(req.userId!, req.params.id)</code> → <code>204</code> (no body).</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="18-services">1.8 Services</h3>
+<pre class="mermaid">classDiagram
+  class AuthService {
+    +register(input: RegisterInputDto): Promise~AuthResultDto~
+    +login(input: LoginInputDto): Promise~AuthResultDto~
+    +forgotPassword(email: string): Promise~void~
+    +resetPassword(input: ResetPasswordInputDto): Promise~void~
+  }
+  class TaskService {
+    +create(ownerId: string, input: CreateTaskInputDto): Promise~TaskDto~
+    +list(ownerId: string, status?: string): Promise~TaskDto[]~
+    +update(ownerId: string, taskId: string, input: UpdateTaskInputDto): Promise~TaskDto~
+    +remove(ownerId: string, taskId: string): Promise~void~
+    -assertOwnedTaskOrThrow(ownerId: string, taskId: string): Promise~Task~
+  }
+  class EmailService {
+    +sendPasswordResetOtp(email: string, otp: string): Promise~void~
+  }
+  AuthService --&gt; EmailService : dependency
+  AuthService --&gt; PrismaClient : dependency
+  TaskService --&gt; PrismaClient : dependency
+</pre>
+<h3 id="19-pseudocode-nghiệp-vụ-phức-tạp">1.9 Pseudocode nghiệp vụ phức tạp</h3>
+<blockquote>
+<p>Pseudocode minh họa ý tưởng, không phải code cuối cùng.</p>
+</blockquote>
+<p><strong>Register:</strong></p>
+<pre><code>function register(email, password, confirmPassword):
+    if confirmPassword != password:
+        throw BadRequestError(&quot;Xác nhận mật khẩu không khớp&quot;)
+    existingUser = prisma.user.findUnique({ email })
+    if existingUser != null:
+        throw ConflictError(&quot;Email đã được sử dụng&quot;)
+    passwordHash = bcrypt.hash(password, SALT_ROUNDS=10)
+    user = prisma.user.create({ email, passwordHash })
+    accessToken = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_TTL })
+    return { accessToken, user: toSafeUserDto(user) }
+</code></pre>
+<p><strong>Login:</strong></p>
+<pre><code>function login(email, password):
+    user = prisma.user.findUnique({ email })
+    if user == null:
+        throw UnauthorizedError(&quot;Email hoặc mật khẩu không đúng&quot;)   # KHÔNG tiết lộ trường nào sai
+    isMatch = bcrypt.compare(password, user.passwordHash)
+    if not isMatch:
+        throw UnauthorizedError(&quot;Email hoặc mật khẩu không đúng&quot;)
+    accessToken = jwt.sign({ sub: user.id, email: user.email }, JWT_SECRET, { expiresIn: JWT_TTL })
+    return { accessToken, user: toSafeUserDto(user) }
+</code></pre>
+<p><strong>Forgot-password (luôn trả 200 ở Controller, logic phân nhánh chỉ nằm trong Service):</strong></p>
+<pre><code>function forgotPassword(email):
+    user = prisma.user.findUnique({ email })
+    if user == null:
+        return                                 # KHÔNG throw, KHÔNG làm gì thêm — tránh lộ user không tồn tại
+    otp = generateNumericOtp(length=6)
+    otpHash = bcrypt.hash(otp, SALT_ROUNDS=10)
+    expiresAt = now() + OTP_TTL_MINUTES(10)
+    prisma.user.update(user.id, {
+        resetOtpHash: otpHash,
+        resetOtpExpiresAt: expiresAt,
+        resetOtpAttemptCount: 0
+    })
+    try:
+        emailService.sendPasswordResetOtp(email, otp)
+    catch emailError:
+        log.error(&quot;Gửi OTP thất bại&quot;, emailError)   # CHỈ log, KHÔNG throw ra Controller
+    return
+</code></pre>
+<p><strong>Lưu ý quan trọng</strong>: lỗi gửi email bị <strong>nuốt có chủ đích</strong> (log nhưng không propagate) — đây KHÔNG phải catch rỗng vi phạm nguyên tắc chống im lặng lỗi vì có log; đây là quyết định bảo mật bắt buộc để response giữa &quot;email tồn tại nhưng SMTP lỗi&quot; và &quot;email không tồn tại&quot; <strong>giống nhau 100%</strong> từ phía client, tránh user-enumeration. Rủi ro còn lại: nếu SMTP lỗi, người dùng hợp lệ sẽ không nhận được OTP mà không biết — ghi nhận ở mục Giả định.</p>
+<p><strong>Reset-password:</strong></p>
+<pre><code>function resetPassword(email, otp, newPassword):
+    genericError = BadRequestError(&quot;Mã xác nhận không đúng hoặc đã hết hạn&quot;)
+    user = prisma.user.findUnique({ email })
+    if user == null: throw genericError
+    if user.resetOtpHash == null or user.resetOtpExpiresAt &lt; now(): throw genericError
+    if user.resetOtpAttemptCount &gt;= MAX_OTP_ATTEMPTS(5):
+        prisma.user.update(user.id, { resetOtpHash: null, resetOtpExpiresAt: null, resetOtpAttemptCount: 0 })
+        throw genericError
+    otpMatches = bcrypt.compare(otp, user.resetOtpHash)
+    if not otpMatches:
+        prisma.user.update(user.id, { resetOtpAttemptCount: user.resetOtpAttemptCount + 1 })
+        throw genericError
+    newPasswordHash = bcrypt.hash(newPassword, SALT_ROUNDS=10)
+    prisma.user.update(user.id, {
+        passwordHash: newPasswordHash,
+        resetOtpHash: null, resetOtpExpiresAt: null, resetOtpAttemptCount: 0   # invalidate OTP, one-time use
+    })
+    return
+</code></pre>
+<p><strong>Ownership check (Update/Toggle/Delete) — phân biệt rõ 404 vs 403:</strong></p>
+<pre><code>function assertOwnedTaskOrThrow(ownerId, taskId):
+    task = prisma.task.findUnique({ id: taskId })
+    if task == null:
+        throw NotFoundError(&quot;Task không tồn tại&quot;)          # task thực sự không có trong DB
+    if task.ownerId != ownerId:
+        throw ForbiddenError(&quot;Bạn không có quyền thực hiện thao tác này&quot;)  # tồn tại nhưng không phải chủ
+    return task
+
+function update(ownerId, taskId, input):
+    task = assertOwnedTaskOrThrow(ownerId, taskId)
+    updated = prisma.task.update(taskId, {
+        title: input.title ?? task.title,
+        description: input.description ?? task.description,
+        status: input.status ?? task.status
+    })
+    return toTaskDto(updated)
+
+function remove(ownerId, taskId):
+    task = assertOwnedTaskOrThrow(ownerId, taskId)
+    prisma.task.delete(taskId)
+</code></pre>
+<h3 id="110-validators-zod-ý-nghĩa-không-phải-code-thật">1.10 Validators (Zod — ý nghĩa, không phải code thật)</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Schema</th>
+<th>Field</th>
+<th>Rule</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>registerSchema</code></td>
+<td><code>email</code></td>
+<td>string, format email</td>
+</tr>
+<tr>
+<td></td>
+<td><code>password</code></td>
+<td>string, min 8, phải có ≥1 chữ và ≥1 số</td>
+</tr>
+<tr>
+<td></td>
+<td><code>confirmPassword</code></td>
+<td>string, <code>.refine()</code> phải khớp <code>password</code> <em>(giả định — xem mục 10 Giả định)</em></td>
+</tr>
+<tr>
+<td><code>loginSchema</code></td>
+<td><code>email</code>, <code>password</code></td>
+<td>string, không rỗng (không enforce format ở login)</td>
+</tr>
+<tr>
+<td><code>forgotPasswordSchema</code></td>
+<td><code>email</code></td>
+<td>string, format email</td>
+</tr>
+<tr>
+<td><code>resetPasswordSchema</code></td>
+<td><code>email</code></td>
+<td>string, format email</td>
+</tr>
+<tr>
+<td></td>
+<td><code>otp</code></td>
+<td>string, đúng 6 ký tự số</td>
+</tr>
+<tr>
+<td></td>
+<td><code>newPassword</code></td>
+<td>như <code>password</code> ở register</td>
+</tr>
+<tr>
+<td></td>
+<td><code>confirmNewPassword</code></td>
+<td><code>.refine()</code> khớp <code>newPassword</code></td>
+</tr>
+<tr>
+<td><code>createTaskSchema</code></td>
+<td><code>title</code></td>
+<td>string, <code>.trim()</code>, min 1 (reject rỗng/chỉ-khoảng-trắng)</td>
+</tr>
+<tr>
+<td></td>
+<td><code>description</code></td>
+<td>string, optional</td>
+</tr>
+<tr>
+<td><code>updateTaskSchema</code></td>
+<td><code>title?</code>, <code>description?</code>, <code>status?</code> ('open'|'done')</td>
+<td>tất cả optional, <code>.refine()</code> phải có <strong>ít nhất 1 field</strong> được cung cấp</td>
+</tr>
+<tr>
+<td><code>listTaskQuerySchema</code></td>
+<td><code>status?</code></td>
+<td>enum <code>'open' | 'done' | 'all'</code>, optional (absent = 'all')</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="111-bảng-xử-lý-lỗiexception-backend">1.11 Bảng xử lý lỗi/exception (Backend)</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Method/luồng</th>
+<th>Exception có thể ném</th>
+<th>Tình huống</th>
+<th>Nơi bắt/xử lý</th>
+<th>Retry/Fallback</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>authMiddleware</code></td>
+<td><code>UnauthorizedError</code></td>
+<td>Thiếu header, token sai signature/hết hạn</td>
+<td><code>errorHandler</code> (qua <code>next(err)</code>)</td>
+<td>Không retry (lỗi input/credential, fail-fast); client phải đăng nhập lại</td>
+</tr>
+<tr>
+<td><code>validateBody</code>/<code>validateQuery</code></td>
+<td><code>BadRequestError</code></td>
+<td>Body/query không khớp schema</td>
+<td><code>errorHandler</code></td>
+<td>Không retry (lỗi input)</td>
+</tr>
+<tr>
+<td><code>AuthService.register</code></td>
+<td><code>ConflictError</code></td>
+<td>Email đã tồn tại</td>
+<td><code>errorHandler</code></td>
+<td>Không retry</td>
+</tr>
+<tr>
+<td><code>AuthService.login</code></td>
+<td><code>UnauthorizedError</code></td>
+<td>Sai email/mật khẩu</td>
+<td><code>errorHandler</code></td>
+<td>Không retry</td>
+</tr>
+<tr>
+<td><code>AuthService.forgotPassword</code></td>
+<td>(không ném ra ngoài)</td>
+<td>Lỗi gửi email SMTP</td>
+<td><strong>Service tự bắt, log, không propagate</strong></td>
+<td>Không retry gửi email ở v1 (ghi nhận là giới hạn đã biết, xem mục 10)</td>
+</tr>
+<tr>
+<td><code>AuthService.resetPassword</code></td>
+<td><code>BadRequestError</code></td>
+<td>OTP sai/hết hạn/vượt max attempt</td>
+<td><code>errorHandler</code></td>
+<td>Không retry — user phải yêu cầu OTP mới</td>
+</tr>
+<tr>
+<td><code>TaskService.assertOwnedTaskOrThrow</code></td>
+<td><code>NotFoundError</code>, <code>ForbiddenError</code></td>
+<td>Task không tồn tại / không phải chủ</td>
+<td><code>errorHandler</code></td>
+<td>Không retry</td>
+</tr>
+<tr>
+<td><code>PrismaClient</code> (bất kỳ lỗi kết nối DB)</td>
+<td>Lỗi không phải <code>AppError</code> (vd <code>PrismaClientKnownRequestError</code>, lỗi connection)</td>
+<td>DB down/timeout</td>
+<td><code>errorHandler</code> nhánh <code>else</code> → log đầy đủ, trả <code>500</code> chung, <strong>không lộ stack trace ở production</strong></td>
+<td>Không có retry tự động trong scope này (ngoài phạm vi: connection pool/circuit breaker thuộc thiết kế hạ tầng)</td>
+</tr>
+</tbody>
+</table>
+</div>
+<h3 id="112-gợi-ý-điểm-cần-test-backend">1.12 Gợi ý điểm cần test (Backend)</h3>
+<ul>
+<li>Unit test <code>TaskService.update</code>/<code>remove</code> với 3 case: task không tồn tại (404), task thuộc user khác (403), task hợp lệ (200) — đúng Unit Test Scenario #2/#4 SRS mục 7.1.</li>
+<li>Unit test <code>AuthService.resetPassword</code>: OTP đúng, OTP sai, OTP hết hạn, vượt <code>MAX_OTP_ATTEMPTS</code> — mỗi case nên có test riêng vì nhiều nhánh rẽ.</li>
+<li>Integration test (Supertest) <code>POST /auth/forgot-password</code> với email tồn tại và không tồn tại → <strong>phải assert response hoàn toàn giống nhau</strong> (status 200, cùng body) — đây là test quan trọng nhất để đảm bảo không có user-enumeration leak.</li>
+<li>Integration test <code>GET /tasks?status=open</code> với dữ liệu mixed status — đúng Scenario #5 SRS.</li>
+<li>Edge case cần test riêng: <code>updateTaskSchema</code> refine &quot;phải có ít nhất 1 field&quot; — gửi body rỗng <code>{}</code> phải trả 400.</li>
+<li>Gợi ý dùng <code>test-writer</code> để viết test thật dựa trên các điểm trên.</li>
+</ul>
+<h2 id="2-backend-sơ-đồ-lớp-tổng-thể">2. Backend — Sơ đồ lớp tổng thể</h2>
+<pre class="mermaid">classDiagram
+  class AuthController { +register() +login() +forgotPassword() +resetPassword() }
+  class TaskController { +create() +list() +update() +remove() }
+  class AuthService { +register() +login() +forgotPassword() +resetPassword() }
+  class TaskService { +create() +list() +update() +remove() -assertOwnedTaskOrThrow() }
+  class EmailService { +sendPasswordResetOtp() }
+  class authMiddleware
+  class validateBody
+  class errorHandler
+  class PrismaClient
+
+  AuthController --&gt; AuthService : dependency
+  TaskController --&gt; TaskService : dependency
+  AuthService --&gt; EmailService : dependency
+  AuthService --&gt; PrismaClient : dependency
+  TaskService --&gt; PrismaClient : dependency
+  authMiddleware ..&gt; TaskController : gates
+  validateBody ..&gt; AuthController : gates
+  validateBody ..&gt; TaskController : gates
+  AuthService ..&gt; AppError : throws
+  TaskService ..&gt; AppError : throws
+  errorHandler ..&gt; AppError : handles
+</pre>
+<hr />
+<h1 id="phần-b-android">PHẦN B — ANDROID</h1>
+<h2 id="3-android-cấu-trúc-package-domaindata-layer">3. Android — Cấu trúc package &amp; Domain/Data layer</h2>
+<h3 id="31-cấu-trúc-package-đề-xuất-gradle-đơn-module">3.1 Cấu trúc package đề xuất (Gradle đơn-module)</h3>
+<p><strong>Quyết định LLD</strong>: dùng <strong>1 Gradle module duy nhất</strong> (<code>app</code>) với package phân tách rõ theo layer, thay vì đa-module. Lý do: scope dự án (7 màn hình, CRUD đơn giản) không đủ lớn để cần build-time isolation của đa-module; ranh giới layer vẫn được giữ nghiêm qua convention import (domain không import <code>android.*</code>), đủ để đáp ứng yêu cầu testability của HLD. Có thể tách module sau nếu dự án scale lên.</p>
+<pre><code>app/src/main/java/com/example/todo/
+  core/
+    session/
+      SessionEventBus.kt
+      SessionEvent.kt                 # sealed class { object SessionExpired }
+  domain/
+    model/
+      Task.kt
+      TaskStatus.kt
+      AuthSession.kt
+      AuthUser.kt
+    common/
+      ApiResult.kt                    # sealed class ApiResult&lt;T&gt; { Success, Error, NetworkError }
+      ApiErrorCode.kt
+    repository/
+      AuthRepository.kt
+      TaskRepository.kt
+    usecase/
+      auth/
+        RegisterUseCase.kt
+        LoginUseCase.kt
+        LogoutUseCase.kt
+        ForgotPasswordUseCase.kt
+        ResetPasswordUseCase.kt
+      task/
+        GetTasksUseCase.kt
+        GetTaskByIdUseCase.kt
+        CreateTaskUseCase.kt
+        UpdateTaskUseCase.kt
+        ToggleTaskStatusUseCase.kt
+        DeleteTaskUseCase.kt
+  data/
+    remote/
+      dto/
+        auth/
+          RegisterRequestDto.kt, LoginRequestDto.kt
+          ForgotPasswordRequestDto.kt, ResetPasswordRequestDto.kt
+          AuthResponseDto.kt, UserDto.kt
+        task/
+          TaskDto.kt, CreateTaskRequestDto.kt, UpdateTaskRequestDto.kt
+      api/
+        AuthApiService.kt
+        TaskApiService.kt
+      interceptor/
+        AuthHeaderInterceptor.kt
+        SessionExpiredInterceptor.kt
+    local/
+      TokenLocalDataSource.kt         # interface + impl (DataStore + security-crypto)
+    mapper/
+      TaskMapper.kt
+      UserMapper.kt
+    repository/
+      AuthRepositoryImpl.kt
+      TaskRepositoryImpl.kt
+  presentation/
+    auth/
+      LoginScreen.kt, LoginViewModel.kt, LoginUiState.kt
+      RegisterScreen.kt, RegisterViewModel.kt, RegisterUiState.kt
+      ForgotPasswordScreen.kt, ForgotPasswordViewModel.kt, ForgotPasswordUiState.kt
+      ResetPasswordScreen.kt, ResetPasswordViewModel.kt, ResetPasswordUiState.kt
+    tasklist/
+      TaskListScreen.kt, TaskListViewModel.kt, TaskListUiState.kt, TaskUiModel.kt
+    taskform/
+      CreateTaskScreen.kt, EditTaskScreen.kt
+      TaskFormViewModel.kt, TaskFormUiState.kt
+    navigation/
+      Routes.kt, NavGraph.kt
+      SessionObserverViewModel.kt     # collect SessionEventBus tại NavHost gốc
+  di/
+    NetworkModule.kt, DataStoreModule.kt, RepositoryModule.kt
+</code></pre>
+<h3 id="32-domain-entities">3.2 Domain Entities</h3>
+<pre><code class="language-kotlin">// Ý tưởng thiết kế, không phải code compile được
+data class Task(
+    val id: String,
+    val title: String,
+    val description: String?,
+    val status: TaskStatus,
+    val createdAt: Instant,
+    val updatedAt: Instant
+)
+enum class TaskStatus { OPEN, DONE }
+
+data class AuthSession(val accessToken: String, val user: AuthUser)
+data class AuthUser(val id: String, val email: String)
+</code></pre>
+<h3 id="33-apiresult-result-type-xuyên-suốt-repository-usecase-viewmodel">3.3 <code>ApiResult</code> — Result type xuyên suốt Repository → UseCase → ViewModel</h3>
+<pre><code class="language-kotlin">// domain/common/ApiResult.kt — Ý tưởng thiết kế
+sealed class ApiResult&lt;out T&gt; {
+    data class Success&lt;out T&gt;(val data: T) : ApiResult&lt;T&gt;()
+    data class Error(val code: ApiErrorCode, val message: String?) : ApiResult&lt;Nothing&gt;()
+    data object NetworkError : ApiResult&lt;Nothing&gt;()
+}
+
+enum class ApiErrorCode { BAD_REQUEST, UNAUTHORIZED, FORBIDDEN, NOT_FOUND, CONFLICT, SERVER_ERROR, UNKNOWN }
+</code></pre>
+<p>Đặt trong <code>domain/common</code> (Kotlin thuần, không phụ thuộc Android) để cả Domain lẫn Data đều dùng được (Data phụ thuộc Domain theo đúng hướng Clean Architecture, không ngược lại) — đây chính là cơ chế đảm bảo <strong>exception không bao giờ bay tự do lên UI</strong>: mọi lỗi (HTTP 4xx/5xx, <code>IOException</code> mất mạng, lỗi parse JSON) đều được Repository Impl chặn và chuyển thành một trong 3 nhánh của <code>ApiResult</code> trước khi trả lên UseCase/ViewModel.</p>
+<h3 id="34-repository-interfaces-domain">3.4 Repository interfaces (Domain)</h3>
+<pre><code class="language-kotlin">// Ý tưởng thiết kế
+interface AuthRepository {
+    suspend fun register(email: String, password: String, confirmPassword: String): ApiResult&lt;AuthSession&gt;
+    suspend fun login(email: String, password: String): ApiResult&lt;AuthSession&gt;
+    suspend fun logout()                                      // chỉ xóa token cục bộ, KHÔNG gọi API (không có /auth/logout)
+    suspend fun forgotPassword(email: String): ApiResult&lt;Unit&gt;
+    suspend fun resetPassword(email: String, otp: String, newPassword: String, confirmNewPassword: String): ApiResult&lt;Unit&gt;
+    suspend fun hasStoredToken(): Boolean                     // kiểm tra nhanh có token lưu cục bộ hay không (dùng cho &quot;giữ phiên&quot;)
+}
+
+interface TaskRepository {
+    suspend fun getTasks(filter: TaskStatus? = null): ApiResult&lt;List&lt;Task&gt;&gt;
+    suspend fun getTaskById(id: String): ApiResult&lt;Task&gt;   // dùng để load dữ liệu cho EditTaskScreen (thay SelectedTaskHolder)
+    suspend fun createTask(title: String, description: String?): ApiResult&lt;Task&gt;
+    suspend fun editTask(id: String, title: String, description: String?): ApiResult&lt;Task&gt;
+    suspend fun toggleTaskStatus(id: String, newStatus: TaskStatus): ApiResult&lt;Task&gt;
+    suspend fun deleteTask(id: String): ApiResult&lt;Unit&gt;
+}
+</code></pre>
+<p><strong>Quyết định LLD</strong>: tách <code>editTask</code> (sửa title/description) và <code>toggleTaskStatus</code> (đổi status) thành <strong>2 method riêng</strong> trên <code>TaskRepository</code> dù cả hai cùng gọi <code>PUT /tasks/:id</code> ở tầng HTTP — tránh dùng tham số <code>null</code> làm &quot;sentinel nghĩa là không đổi&quot; (dễ nhầm lẫn với &quot;đổi thành null/rỗng&quot;), giúp mỗi UseCase có một hành vi rõ ràng, dễ test độc lập.</p>
+<h3 id="35-data-layer-dto-apiservice-mapper-repository-impl">3.5 Data layer — DTO, ApiService, Mapper, Repository Impl</h3>
+<blockquote>
+<p><strong>DTO/JSON field dưới đây là GIẢ ĐỊNH mức khái niệm</strong> để thiết kế Retrofit interface nội bộ — <strong>không phải API contract chính thức</strong> (việc chốt field name/format thật thuộc <code>api-designer</code>, cần làm trước khi code thật).</p>
+</blockquote>
+<pre><code class="language-kotlin">// data/remote/dto — Ý tưởng thiết kế
+@Serializable data class RegisterRequestDto(val email: String, val password: String, val confirmPassword: String)
+@Serializable data class LoginRequestDto(val email: String, val password: String)
+@Serializable data class ForgotPasswordRequestDto(val email: String)
+@Serializable data class ResetPasswordRequestDto(val email: String, val otp: String, val newPassword: String, val confirmNewPassword: String)
+@Serializable data class AuthResponseDto(val accessToken: String, val user: UserDto)
+@Serializable data class UserDto(val id: String, val email: String)
+
+@Serializable data class TaskDto(
+    val id: String, val title: String, val description: String?,
+    val status: String,          // &quot;open&quot; | &quot;done&quot; — khớp Prisma enum
+    val createdAt: String, val updatedAt: String   // ISO-8601 string
+)
+@Serializable data class CreateTaskRequestDto(val title: String, val description: String?)
+@Serializable data class UpdateTaskRequestDto(val title: String? = null, val description: String? = null, val status: String? = null)
+</code></pre>
+<pre><code class="language-kotlin">// data/remote/api — Ý tưởng thiết kế
+interface AuthApiService {
+    @POST(&quot;auth/register&quot;) suspend fun register(@Body body: RegisterRequestDto): Response&lt;AuthResponseDto&gt;
+    @POST(&quot;auth/login&quot;) suspend fun login(@Body body: LoginRequestDto): Response&lt;AuthResponseDto&gt;
+    @POST(&quot;auth/forgot-password&quot;) suspend fun forgotPassword(@Body body: ForgotPasswordRequestDto): Response&lt;Unit&gt;
+    @POST(&quot;auth/reset-password&quot;) suspend fun resetPassword(@Body body: ResetPasswordRequestDto): Response&lt;Unit&gt;
+}
+
+interface TaskApiService {
+    @GET(&quot;tasks&quot;) suspend fun getTasks(@Query(&quot;status&quot;) status: String?): Response&lt;List&lt;TaskDto&gt;&gt;
+    @GET(&quot;tasks/{id}&quot;) suspend fun getTaskById(@Path(&quot;id&quot;) id: String): Response&lt;TaskDto&gt;
+    @POST(&quot;tasks&quot;) suspend fun createTask(@Body body: CreateTaskRequestDto): Response&lt;TaskDto&gt;
+    @PUT(&quot;tasks/{id}&quot;) suspend fun updateTask(@Path(&quot;id&quot;) id: String, @Body body: UpdateTaskRequestDto): Response&lt;TaskDto&gt;
+    @DELETE(&quot;tasks/{id}&quot;) suspend fun deleteTask(@Path(&quot;id&quot;) id: String): Response&lt;Unit&gt;
+}
+</code></pre>
+<p><strong>Mapper</strong> (<code>TaskMapper</code>): <code>fun TaskDto.toDomain(): Task</code> (parse <code>status</code> string → enum, parse ISO string → <code>Instant</code>); <code>fun Task.toCreateRequestDto(): CreateTaskRequestDto</code>; tương tự <code>UserMapper</code> cho <code>UserDto ↔ AuthUser</code>.</p>
+<p><strong><code>TaskRepositoryImpl</code>/<code>AuthRepositoryImpl</code></strong>: mỗi method implement bằng cách gọi <code>ApiService</code> tương ứng, bọc trong hàm dùng chung <code>safeApiCall</code> (pseudocode dưới), map response thành công qua Mapper, map lỗi thành <code>ApiResult.Error</code>/<code>ApiResult.NetworkError</code>. <code>AuthRepositoryImpl</code> thêm bước gọi <code>TokenLocalDataSource.saveToken()</code> sau khi <code>register</code>/<code>login</code> thành công, và <code>TokenLocalDataSource.clearToken()</code> trong <code>logout()</code>.</p>
+<h3 id="36-pseudocode-safeapicall-chặn-exception-bay-lên-ui">3.6 Pseudocode: <code>safeApiCall</code> — chặn exception bay lên UI</h3>
+<blockquote>
+<p>Pseudocode minh họa ý tưởng, không phải code cuối cùng.</p>
+</blockquote>
+<pre><code>suspend fun &lt;T&gt; safeApiCall(block: suspend () -&gt; Response&lt;T&gt;): ApiResult&lt;T&gt; {
+    try {
+        response = block()
+        if response.isSuccessful:
+            return ApiResult.Success(response.body())
+        else:
+            code = mapHttpStatusToApiErrorCode(response.code())   # 400-&gt;BAD_REQUEST, 401-&gt;UNAUTHORIZED,
+                                                                    # 403-&gt;FORBIDDEN, 404-&gt;NOT_FOUND, 409-&gt;CONFLICT, 5xx-&gt;SERVER_ERROR
+            message = parseErrorBody(response.errorBody())
+            return ApiResult.Error(code, message)
+    catch (e: IOException):           # mất mạng, timeout
+        return ApiResult.NetworkError
+    catch (e: Exception):             # lỗi parse JSON / lỗi không lường trước
+        return ApiResult.Error(ApiErrorCode.UNKNOWN, e.message)
+}
+</code></pre>
+<p><strong>Lưu ý</strong>: dù <code>401</code> đã được <code>SessionExpiredInterceptor</code> xử lý toàn cục (xóa token + emit <code>SessionEventBus</code>) <em>trước khi</em> response này tới <code>safeApiCall</code>, hàm này vẫn phải trả <code>ApiResult.Error(UNAUTHORIZED,...)</code> bình thường — để coroutine đang gọi (ở ViewModel) kết thúc gọn gàng (tắt loading) thay vì bị treo; việc điều hướng về Login được xử lý riêng qua <code>SessionEventBus</code>, không phụ thuộc vào nhánh này.</p>
+<h3 id="37-okhttp-interceptor-401-toàn-cục">3.7 OkHttp Interceptor — 401 toàn cục</h3>
+<pre><code class="language-kotlin">// Ý tưởng thiết kế
+class AuthHeaderInterceptor(private val tokenLocalDataSource: TokenLocalDataSource) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): okhttp3.Response
+    // chỉ gắn header Authorization cho request có path bắt đầu &quot;/tasks&quot; (không áp dụng /auth/*)
+}
+
+class SessionExpiredInterceptor(
+    private val tokenLocalDataSource: TokenLocalDataSource,
+    private val sessionEventBus: SessionEventBus,
+    private val appScope: CoroutineScope          // CoroutineScope(SupervisorJob() + Dispatchers.IO), sống cùng Application
+) : Interceptor {
+    override fun intercept(chain: Interceptor.Chain): okhttp3.Response
+}
+</code></pre>
+<pre><code># Pseudocode minh họa ý tưởng, không phải code cuối cùng
+function AuthHeaderInterceptor.intercept(chain):
+    request = chain.request()
+    if request.url.path startsWith &quot;/tasks&quot;:
+        token = tokenLocalDataSource.getTokenBlocking()   # đọc đồng bộ, chạy trên OkHttp dispatcher thread
+        if token != null:
+            request = request.newBuilder().addHeader(&quot;Authorization&quot;, &quot;Bearer $token&quot;).build()
+    return chain.proceed(request)
+
+function SessionExpiredInterceptor.intercept(chain):
+    response = chain.proceed(chain.request())
+    if response.code == 401:
+        appScope.launch {                                  # intercept() KHÔNG phải suspend fun -&gt; phải launch coroutine riêng
+            tokenLocalDataSource.clearToken()
+            sessionEventBus.emit(SessionEvent.SessionExpired)
+        }
+    return response
+</code></pre>
+<p><strong>Điểm kỹ thuật quan trọng</strong>: <code>Interceptor.intercept()</code> chạy trên thread dispatcher của OkHttp, <strong>không phải</strong> suspend function — mọi lời gọi <code>suspend</code> (<code>clearToken()</code>, <code>emit()</code>) phải được bọc trong <code>appScope.launch{}</code> riêng, không thể gọi trực tiếp.</p>
+<p><strong><code>SessionEventBus</code></strong>:</p>
+<pre><code class="language-kotlin">// core/session — Ý tưởng thiết kế
+class SessionEventBus {
+    private val _events = MutableSharedFlow&lt;SessionEvent&gt;(replay = 0, extraBufferCapacity = 1)
+    val events: SharedFlow&lt;SessionEvent&gt; = _events.asSharedFlow()
+    suspend fun emit(event: SessionEvent)
+}
+sealed class SessionEvent { data object SessionExpired : SessionEvent() }
+</code></pre>
+<p><code>replay = 0</code> để <strong>không</strong> phát lại sự kiện cũ cho observer mới subscribe sau (tránh re-trigger logout khi quay lại Login lần sau); <code>extraBufferCapacity = 1</code> để không mất event nếu emit xảy ra đúng lúc observer tạm gián đoạn collect (ví dụ do recomposition).</p>
+<h2 id="4-android-presentation-layer">4. Android — Presentation layer</h2>
+<h3 id="41-usecases-10-cái-theo-hld">4.1 UseCases (10 cái theo HLD)</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>UseCase</th>
+<th>Signature</th>
+<th>Validate trước khi gọi Repository</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>RegisterUseCase</code></td>
+<td><code>suspend operator fun invoke(email, password, confirmPassword): ApiResult&lt;AuthSession&gt;</code></td>
+<td>email format, password rule, confirm khớp — invalid → <code>ApiResult.Error(BAD_REQUEST,...)</code> ngay, KHÔNG gọi network</td>
+</tr>
+<tr>
+<td><code>LoginUseCase</code></td>
+<td><code>suspend operator fun invoke(email, password): ApiResult&lt;AuthSession&gt;</code></td>
+<td>chỉ check non-empty</td>
+</tr>
+<tr>
+<td><code>LogoutUseCase</code></td>
+<td><code>suspend operator fun invoke()</code></td>
+<td>không có — luôn thành công (chỉ xóa token cục bộ)</td>
+</tr>
+<tr>
+<td><code>ForgotPasswordUseCase</code></td>
+<td><code>suspend operator fun invoke(email): ApiResult&lt;Unit&gt;</code></td>
+<td>email format</td>
+</tr>
+<tr>
+<td><code>ResetPasswordUseCase</code></td>
+<td><code>suspend operator fun invoke(email, otp, newPassword, confirmNewPassword): ApiResult&lt;Unit&gt;</code></td>
+<td>otp non-empty, password rule, confirm khớp</td>
+</tr>
+<tr>
+<td><code>GetTasksUseCase</code></td>
+<td><code>suspend operator fun invoke(filter: TaskFilter): ApiResult&lt;List&lt;Task&gt;&gt;</code></td>
+<td>map <code>TaskFilter.ALL → null</code> khi gọi repository</td>
+</tr>
+<tr>
+<td><code>CreateTaskUseCase</code></td>
+<td><code>suspend operator fun invoke(title, description): ApiResult&lt;Task&gt;</code></td>
+<td><code>title.trim().isNotEmpty()</code> — defensive, dù ViewModel đã validate</td>
+</tr>
+<tr>
+<td><code>UpdateTaskUseCase</code></td>
+<td><code>suspend operator fun invoke(id, title, description): ApiResult&lt;Task&gt;</code></td>
+<td><code>title.trim().isNotEmpty()</code></td>
+</tr>
+<tr>
+<td><code>ToggleTaskStatusUseCase</code></td>
+<td><code>suspend operator fun invoke(id, currentStatus): ApiResult&lt;Task&gt;</code></td>
+<td>tự tính <code>newStatus = opposite(currentStatus)</code>, gọi <code>repository.toggleTaskStatus</code></td>
+</tr>
+<tr>
+<td><code>DeleteTaskUseCase</code></td>
+<td><code>suspend operator fun invoke(id): ApiResult&lt;Unit&gt;</code></td>
+<td>không cần</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>Quyết định LLD về vị trí validate</strong>: validate định dạng/non-empty được làm <strong>2 lần</strong> — (1) ở ViewModel để hiển thị lỗi inline <em>đồng bộ, tức thời</em> (đáp ứng AC &quot;KHÔNG gọi API&quot; khi invalid, không cần đợi coroutine); (2) ở UseCase một lần nữa mang tính <strong>defensive</strong> (bảo vệ invariant nghiệp vụ bất kể ViewModel nào gọi, tránh lỗi nếu sau này có thêm entry point khác quên validate). Đây không phải trùng lặp vô ích mà là ranh giới rõ giữa &quot;UX phản hồi nhanh&quot; (Presentation) và &quot;bảo vệ invariant nghiệp vụ&quot; (Domain).</p>
+<h3 id="42-viewmodel-ui-state">4.2 ViewModel &amp; UI State</h3>
+<p><strong>Quyết định LLD</strong>: tách HLD's &quot;AuthViewModel&quot; (tên gộp) thành <strong>4 ViewModel riêng</strong> — <code>LoginViewModel</code>, <code>RegisterViewModel</code>, <code>ForgotPasswordViewModel</code>, <code>ResetPasswordViewModel</code> — mỗi màn hình một ViewModel qua <code>hiltViewModel()</code> theo route. Lý do: tránh một class ViewModel khổng lồ quản lý 4 state không liên quan, giữ single-responsibility, dễ test độc lập bằng MockK/Turbine (đúng tinh thần HLD, không mâu thuẫn ranh giới layer — chỉ cụ thể hóa số lượng class trong Presentation).</p>
+<pre><code class="language-kotlin">// Ý tưởng thiết kế — các UiState
+
+data class LoginUiState(
+    val email: String = &quot;&quot;, val password: String = &quot;&quot;,
+    val emailError: String? = null, val passwordError: String? = null,
+    val isSubmitting: Boolean = false, val generalError: String? = null,
+    val loginSuccess: Boolean = false
+)
+
+data class RegisterUiState(
+    val email: String = &quot;&quot;, val password: String = &quot;&quot;, val confirmPassword: String = &quot;&quot;,
+    val emailError: String? = null, val passwordError: String? = null, val confirmPasswordError: String? = null,
+    val isSubmitting: Boolean = false, val generalError: String? = null,
+    val registerSuccess: Boolean = false
+)
+
+data class ForgotPasswordUiState(
+    val email: String = &quot;&quot;, val emailError: String? = null,
+    val isSubmitting: Boolean = false, val generalError: String? = null,
+    val requestSent: Boolean = false     // true CHỈ khi backend thực sự phản hồi 200 (không phải network error)
+)
+
+data class ResetPasswordUiState(
+    val email: String,                   // nhận từ nav arg (ForgotPasswordScreen truyền sang)
+    val otp: String = &quot;&quot;, val newPassword: String = &quot;&quot;, val confirmNewPassword: String = &quot;&quot;,
+    val otpError: String? = null, val newPasswordError: String? = null, val confirmNewPasswordError: String? = null,
+    val isSubmitting: Boolean = false, val generalError: String? = null,
+    val resetSuccess: Boolean = false
+)
+
+data class TaskListUiState(
+    val isLoading: Boolean = false,
+    val isRefreshing: Boolean = false,
+    val tasks: List&lt;TaskUiModel&gt; = emptyList(),
+    val filter: TaskFilter = TaskFilter.ALL,
+    val error: UiError? = null,
+    val emptyStateType: EmptyStateType? = null,   // null nếu đang có task hiển thị
+    val hasAnyTaskOverall: Boolean = false         // internal — dùng để tính emptyStateType, xem mục 4.4
+)
+enum class TaskFilter { ALL, OPEN, DONE }
+enum class EmptyStateType { NO_TASKS_AT_ALL, NO_TASKS_MATCH_FILTER }
+data class TaskUiModel(
+    val id: String, val title: String,
+    val descriptionPreview: String?,          // đã truncate 1 dòng ở Mapper tầng Presentation
+    val status: TaskStatus,
+    val isTogglePending: Boolean = false      // per-item loading flag — chống double-tap (mục 4.4)
+)
+data class UiError(val message: String, val isNetworkError: Boolean = false)
+
+data class TaskFormUiState(
+    val taskId: String? = null,               // null = Create, có giá trị = Edit
+    val title: String = &quot;&quot;, val description: String = &quot;&quot;,
+    val titleError: String? = null,
+    val isSubmitting: Boolean = false,
+    val submitError: UiError? = null,
+    val taskDeletedRemotely: Boolean = false,  // true khi Edit gặp 404 (xem mục 4.4)
+    val isSubmitSuccess: Boolean = false
+)
+</code></pre>
+<pre class="mermaid">classDiagram
+  class TaskListViewModel {
+    -getTasksUseCase: GetTasksUseCase
+    -toggleTaskStatusUseCase: ToggleTaskStatusUseCase
+    -deleteTaskUseCase: DeleteTaskUseCase
+    +uiState: StateFlow~TaskListUiState~
+    +onFilterSelected(filter)
+    +loadTasks(showLoading)
+    +onPullToRefresh()
+    +onToggleTask(taskId)
+    +onDeleteTaskConfirmed(taskId)
+  }
+  TaskListViewModel --&gt; TaskListUiState : holds
+  TaskListUiState --&gt; TaskUiModel : contains
+
+  class TaskFormViewModel {
+    -savedStateHandle: SavedStateHandle
+    -createTaskUseCase: CreateTaskUseCase
+    -updateTaskUseCase: UpdateTaskUseCase
+    +uiState: StateFlow~TaskFormUiState~
+    +onTitleChange(value)
+    +onDescriptionChange(value)
+    +onSubmit()
+  }
+  TaskFormViewModel --&gt; TaskFormUiState : holds
+</pre>
+<h3 id="43-entity-domain-vs-dto-data-mapping">4.3 Entity Domain vs DTO Data — mapping</h3>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Khía cạnh</th>
+<th><code>Task</code> (Domain)</th>
+<th><code>TaskDto</code> (Data)</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>status</code></td>
+<td><code>TaskStatus</code> enum (<code>OPEN</code>/<code>DONE</code>)</td>
+<td><code>String</code> thô từ JSON (<code>&quot;open&quot;</code>/<code>&quot;done&quot;</code>)</td>
+</tr>
+<tr>
+<td><code>createdAt</code>/<code>updatedAt</code></td>
+<td><code>kotlin.time.Instant</code> (hoặc <code>java.time.Instant</code>)</td>
+<td><code>String</code> ISO-8601 thô</td>
+</tr>
+<tr>
+<td>Mục đích</td>
+<td>Dùng trong UseCase/ViewModel, không phụ thuộc format JSON</td>
+<td>Chỉ dùng trong Data layer, phản ánh đúng wire format</td>
+</tr>
+<tr>
+<td>Mapping</td>
+<td><code>TaskMapper.toDomain(dto): Task</code> parse string→enum, string→Instant; <code>Task.toRequestDto()</code> ngược lại khi cần gửi lên server</td>
+<td></td>
+</tr>
+</tbody>
+</table>
+</div>
+<p>Việc tách riêng tránh Domain/Presentation phải biết định dạng JSON cụ thể (nếu backend đổi format ngày giờ, chỉ <code>TaskMapper</code> cần sửa).</p>
+<h3 id="44-pseudocode-cho-các-cơ-chế-đặc-thù-mobile">4.4 Pseudocode cho các cơ chế đặc thù mobile</h3>
+<blockquote>
+<p>Pseudocode minh họa ý tưởng, không phải code cuối cùng.</p>
+</blockquote>
+<p><strong>(a) Double-tap protection + rollback khi toggle:</strong></p>
+<pre><code>fun onToggleTask(taskId):
+    targetTask = uiState.value.tasks.find { it.id == taskId } ?: return
+    if targetTask.isTogglePending: return     # CHẶN double-tap: request trước chưa xong, bỏ qua tap mới
+                                               # (check này chạy đồng bộ trên Main thread TRƯỚC điểm suspend đầu tiên,
+                                               #  nên 2 tap liên tiếp luôn được xử lý tuần tự, không race)
+    previousStatus = targetTask.status
+    optimisticStatus = opposite(previousStatus)
+
+    updateState { it.copy(tasks = it.tasks.map { t -&gt;
+        if t.id == taskId: t.copy(status = optimisticStatus, isTogglePending = true) else t
+    }) }                                        # optimistic update + đánh dấu pending — ĐÚNG lúc, trước khi launch coroutine
+
+    viewModelScope.launch {
+        result = toggleTaskStatusUseCase(taskId, previousStatus)
+        when (result):
+            Success -&gt; updateState { it.copy(tasks = it.tasks.map { t -&gt;
+                           if t.id == taskId: t.copy(isTogglePending = false) else t }) }
+                       reapplyFilterIfNeeded()    # nếu đang lọc Open/Done, task không còn thỏa -&gt; ẩn khỏi list hiển thị
+            Error(NOT_FOUND) -&gt; showToast(&quot;Task không còn tồn tại&quot;); removeTaskFromState(taskId)   # loại hẳn, KHÔNG rollback status
+            Error(FORBIDDEN) -&gt; showToast(&quot;Bạn không có quyền thực hiện thao tác này&quot;); rollback(taskId, previousStatus)
+            Error(_) | NetworkError -&gt; showToast(&quot;Có lỗi xảy ra, vui lòng thử lại&quot;); rollback(taskId, previousStatus)
+
+fun rollback(taskId, previousStatus):
+    updateState { it.copy(tasks = it.tasks.map { t -&gt;
+        if t.id == taskId: t.copy(status = previousStatus, isTogglePending = false) else t
+    }) }
+</code></pre>
+<p><strong>(b) Giữ dữ liệu form khi xoay màn hình</strong></p>
+<p><strong>Quyết định LLD: dùng <code>ViewModel</code> + <code>SavedStateHandle</code></strong> (không dùng <code>rememberSaveable</code> ở Composable). Lý do:</p>
+<ul>
+<li><code>ViewModel</code> tự sống sót qua rotation (configuration change) mặc định — chỉ cần state nằm trong <code>StateFlow</code> của ViewModel (không phải <code>remember{}</code> cục bộ trong Composable) là đã đáp ứng AC &quot;xoay màn hình không mất dữ liệu&quot;.</li>
+<li><code>SavedStateHandle</code> cho thêm một lớp bảo vệ mạnh hơn: sống sót qua <strong>process death</strong> (OS kill app khi background, mạnh hơn yêu cầu tối thiểu của AC nhưng chi phí gần như không đáng kể).</li>
+<li>Giữ state trong ViewModel (không phải Composable) nhất quán với Clean Architecture — Presentation state phải test được bằng MockK/Turbine không cần Compose UI Test, đúng chiến lược testing đã chốt ở HLD.</li>
+</ul>
+<pre><code>class TaskFormViewModel(savedStateHandle: SavedStateHandle, ...) {
+    private val _uiState = MutableStateFlow(
+        TaskFormUiState(
+            taskId = savedStateHandle[&quot;taskId&quot;],
+            title = savedStateHandle[&quot;title&quot;] ?: &quot;&quot;,
+            description = savedStateHandle[&quot;description&quot;] ?: &quot;&quot;
+        )
+    )
+    val uiState: StateFlow&lt;TaskFormUiState&gt; = _uiState.asStateFlow()
+
+    fun onTitleChange(value):
+        savedStateHandle[&quot;title&quot;] = value          # ghi đồng thời vào SavedStateHandle
+        updateState { it.copy(title = value, titleError = null) }
+
+    fun onDescriptionChange(value):
+        savedStateHandle[&quot;description&quot;] = value
+        updateState { it.copy(description = value) }
+}
+</code></pre>
+<p><strong>(c) OkHttp Interceptor phát hiện 401 toàn cục → điều hướng Login</strong> (đã mô tả chi tiết ở mục 3.7). Phần điều hướng tại Presentation:</p>
+<pre><code class="language-kotlin">class SessionObserverViewModel(private val sessionEventBus: SessionEventBus) : ViewModel() {
+    val sessionEvents: SharedFlow&lt;SessionEvent&gt; = sessionEventBus.events   // pass-through, để test được qua Turbine
+}
+</code></pre>
+<pre><code># Tại NavHost gốc (Composable) — Ý tưởng thiết kế
+LaunchedEffect(Unit) {
+    sessionObserverViewModel.sessionEvents.collect { event -&gt;
+        when (event) {
+            SessionExpired -&gt; {
+                showSnackbar(&quot;Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại&quot;)
+                # Nếu đang ở CreateTask/EditTask với dữ liệu chưa lưu -&gt; hiển thị thêm cảnh báo mất dữ liệu (FR-04)
+                navController.navigate(Routes.Login) {
+                    popUpTo(0) { inclusive = true }   # xóa toàn bộ backstack -&gt; Back không quay lại được
+                    launchSingleTop = true
+                }
+            }
+        }
+    }
+}
+</code></pre>
+<p><strong>(d) Xử lý 404 khi sửa/toggle/xóa task đã bị xóa ở thiết bị khác</strong></p>
+<ul>
+<li>Toggle: xem (a) — nhánh <code>Error(NOT_FOUND)</code> loại bỏ task khỏi <code>tasks</code> list ngay, không rollback status.</li>
+<li>Delete: tương tự — <code>onDeleteTaskConfirmed</code> nhận <code>Error(NOT_FOUND)</code> → coi như đã đạt mục đích (task không còn tồn tại), vẫn xóa khỏi UI, hiển thị &quot;Task này đã được xóa trước đó&quot; (không phải lỗi chung).</li>
+<li>Edit (trong <code>TaskFormViewModel.onSubmit</code>): nhận <code>Error(NOT_FOUND)</code> → set <code>taskDeletedRemotely = true</code>, hiển thị &quot;Task này không còn tồn tại&quot; → <code>EditTaskScreen</code> điều hướng quay lại <code>TaskListScreen</code> và set <code>savedStateHandle[&quot;refreshNeeded&quot;] = true</code> trên <code>previousBackStackEntry</code> → <code>TaskListViewModel</code> tự <code>loadTasks()</code> lại.</li>
+</ul>
+<p><strong>(e) Pull-to-refresh giữ nguyên filter:</strong></p>
+<pre><code>fun onPullToRefresh():
+    currentFilter = uiState.value.filter
+    updateState { it.copy(isRefreshing = true) }
+    viewModelScope.launch {
+        result = getTasksUseCase(currentFilter)
+        when (result):
+            Success -&gt; updateState { it.copy(
+                           isRefreshing = false, error = null,
+                           tasks = mapToUiModel(result.data),
+                           hasAnyTaskOverall = computeHasAnyTaskOverall(it, currentFilter, result.data),
+                           emptyStateType = computeEmptyState(result.data, currentFilter, ...)) }
+            Error(_) | NetworkError -&gt; updateState { it.copy(isRefreshing = false, error = UiError(...)) }
+                        # KHÔNG xóa `tasks` cũ — danh sách cũ giữ nguyên theo đúng AC FR-08
+</code></pre>
+<p><strong>(f) Empty-state phân biệt &quot;chưa có task nào&quot; vs &quot;lọc không có kết quả&quot;:</strong></p>
+<p><strong>Giả định LLD</strong>: filter mặc định khi mở <code>TaskListScreen</code> lần đầu luôn là <code>ALL</code> — nhờ vậy lần load <code>ALL</code> đầu tiên luôn cho biết chắc chắn tổng thể có task hay không, trước khi người dùng có thể chọn <code>Open</code>/<code>Done</code>.</p>
+<pre><code>fun computeHasAnyTaskOverall(oldState, filter, newTasks):
+    if filter == ALL:
+        return newTasks.isNotEmpty()                 # ALL là nguồn chân lý tuyệt đối
+    else:
+        return oldState.hasAnyTaskOverall or newTasks.isNotEmpty()  # không hạ cờ nếu đã từng biết có task
+
+fun computeEmptyState(tasksForCurrentFilter, filter, hasAnyTaskOverall):
+    if tasksForCurrentFilter.isNotEmpty(): return null
+    if filter == ALL: return NO_TASKS_AT_ALL
+    return if hasAnyTaskOverall: NO_TASKS_MATCH_FILTER else NO_TASKS_AT_ALL
+</code></pre>
+<h2 id="5-android-navigation-graph">5. Android — Navigation Graph</h2>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Route</th>
+<th>Tham số</th>
+<th>Ghi chú</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><code>login</code></td>
+<td>—</td>
+<td>Start destination. Khi ViewModel phát hiện <code>hasStoredToken() == true</code> lúc init → tự <code>navigate(TaskList) { popUpTo(Login){inclusive=true} }</code> ngay — nếu token thực đã hết hạn, lần gọi <code>GET /tasks</code> đầu tiên sẽ trả 401 và tự động bật lại cơ chế mục 4.4(c).</td>
+</tr>
+<tr>
+<td><code>register</code></td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>forgot_password</code></td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>reset_password/{email}</code></td>
+<td><code>email: String</code> (required)</td>
+<td>Nhận từ <code>ForgotPasswordScreen</code> sau khi backend trả 200.</td>
+</tr>
+<tr>
+<td><code>task_list</code></td>
+<td>—</td>
+<td>&quot;Home&quot; sau khi đăng nhập.</td>
+</tr>
+<tr>
+<td><code>create_task</code></td>
+<td>—</td>
+<td></td>
+</tr>
+<tr>
+<td><code>edit_task/{taskId}</code></td>
+<td><code>taskId: String</code> (required)</td>
+<td><strong>(Cập nhật sau API Contract v1.0)</strong> <code>TaskFormViewModel</code> gọi <code>GetTaskByIdUseCase(taskId)</code> → <code>GET /tasks/:id</code> để tự fetch dữ liệu task khi khởi tạo màn hình, KHÔNG còn phụ thuộc vào dữ liệu truyền từ màn hình trước. Thay thế hoàn toàn giải pháp <code>SelectedTaskHolder</code> in-memory đã đề xuất ban đầu (xem mục 10.3 — rủi ro process death nay đã được loại bỏ nhờ bổ sung endpoint <code>GET /tasks/:id</code> trong <code>docs/API_Contract_ToDo_Android.md</code>).</td>
+</tr>
+</tbody>
+</table>
+</div>
+<p><strong>popUpTo khi logout/session-expired</strong>: <code>navController.navigate(Routes.Login) { popUpTo(0) { inclusive = true }; launchSingleTop = true }</code> — áp dụng đồng nhất cho cả FR-03 (Logout) và FR-04 (401 toàn cục) — xóa toàn bộ backstack bất kể đang ở màn hình nào.</p>
+<p><strong>Luồng tải dữ liệu <code>EditTaskScreen</code></strong> (thay thế <code>SelectedTaskHolder</code>):</p>
+<pre><code># Pseudocode minh họa ý tưởng
+class TaskFormViewModel(savedStateHandle: SavedStateHandle, getTaskByIdUseCase: GetTaskByIdUseCase, ...) {
+    init {
+        taskId = savedStateHandle[&quot;taskId&quot;]
+        if taskId != null and uiState.value.title.isEmpty():   # chỉ fetch nếu chưa có data (tránh fetch lại sau rotation)
+            updateState { it.copy(isLoading = true) }
+            viewModelScope.launch {
+                result = getTaskByIdUseCase(taskId)
+                when (result):
+                    Success -&gt; updateState { it.copy(isLoading = false, title = result.data.title, description = result.data.description ?: &quot;&quot;) }
+                    Error(NOT_FOUND) -&gt; updateState { it.copy(isLoading = false, taskDeletedRemotely = true) }
+                    Error(_) | NetworkError -&gt; updateState { it.copy(isLoading = false, submitError = UiError(&quot;Không thể tải dữ liệu task&quot;)) }
+            }
+    }
+}
+</code></pre>
+<p><code>EditTaskScreen</code> hiển thị loading state trong lúc fetch; nếu <code>taskDeletedRemotely=true</code> hoặc lỗi mạng, hiển thị thông báo + cho phép quay lại danh sách (không còn tình huống &quot;mất dữ liệu do process death&quot; như thiết kế cũ).</p>
+<h2 id="6-sequence-diagrams">6. Sequence Diagrams</h2>
+<h3 id="61-đăng-ký-nhận-token-vào-tasklist">6.1 Đăng ký → nhận token → vào TaskList</h3>
+<pre class="mermaid">sequenceDiagram
+    actor U as User
+    participant RS as RegisterScreen
+    participant RVM as RegisterViewModel
+    participant RUC as RegisterUseCase
+    participant AR as AuthRepositoryImpl
+    participant AAPI as AuthApiService
+    participant BE as Backend (Controller to Service to Prisma)
+    participant DB as PostgreSQL
+    participant TLD as TokenLocalDataSource
+    participant NAV as NavHost
+    participant TLVM as TaskListViewModel
+
+    U-&gt;&gt;RS: Nhập email/password/confirmPassword, nhấn Đăng ký
+    RS-&gt;&gt;RVM: onSubmit()
+    RVM-&gt;&gt;RVM: validate inline (format, rule, confirm match)
+    alt Validate client thất bại
+        RVM--&gt;&gt;RS: emailError/passwordError/confirmPasswordError
+        RS--&gt;&gt;U: Lỗi inline, KHÔNG gọi API
+    else Validate OK
+        RVM-&gt;&gt;RVM: isSubmitting = true
+        RVM-&gt;&gt;RUC: invoke(email, password, confirmPassword)
+        RUC-&gt;&gt;AR: register(...)
+        AR-&gt;&gt;AAPI: POST /auth/register
+        AAPI-&gt;&gt;BE: request
+        BE-&gt;&gt;DB: findUnique(email)
+        alt Email đã tồn tại
+            DB--&gt;&gt;BE: User found
+            BE--&gt;&gt;AAPI: 409
+            AAPI--&gt;&gt;AR: Response 409
+            AR--&gt;&gt;RUC: ApiResult.Error(CONFLICT)
+            RUC--&gt;&gt;RVM: ApiResult.Error
+            RVM--&gt;&gt;RS: generalError=&quot;Email đã được sử dụng&quot;, isSubmitting=false
+            RS--&gt;&gt;U: Hiển thị lỗi, giữ dữ liệu
+        else Email chưa tồn tại
+            DB--&gt;&gt;BE: null
+            BE-&gt;&gt;BE: bcrypt.hash(password); jwt.sign(...)
+            BE-&gt;&gt;DB: insert User
+            BE--&gt;&gt;AAPI: 201 {accessToken, user}
+            AAPI--&gt;&gt;AR: Response 201
+            AR-&gt;&gt;TLD: saveToken(accessToken)
+            AR--&gt;&gt;RUC: ApiResult.Success(AuthSession)
+            RUC--&gt;&gt;RVM: ApiResult.Success
+            RVM--&gt;&gt;RS: registerSuccess=true, isSubmitting=false
+            RS-&gt;&gt;NAV: navigate(TaskList) popUpTo(Login){inclusive=true}
+            NAV-&gt;&gt;TLVM: init -&gt; loadTasks()
+            TLVM-&gt;&gt;AAPI: GET /tasks (Authorization gắn tự động bởi Interceptor)
+            AAPI--&gt;&gt;TLVM: 200 []
+            TLVM--&gt;&gt;U: TaskListScreen, empty-state &quot;Bạn chưa có task nào&quot; + toast chào mừng
+        end
+    end
+</pre>
+<h3 id="62-quên-mật-khẩu-otp-đặt-lại-mật-khẩu-thành-công">6.2 Quên mật khẩu → OTP → đặt lại mật khẩu thành công</h3>
+<pre class="mermaid">sequenceDiagram
+    actor U as User
+    participant FPS as ForgotPasswordScreen/VM
+    participant RPS as ResetPasswordScreen/VM
+    participant AR as AuthRepositoryImpl
+    participant AAPI as AuthApiService
+    participant BE as AuthController/AuthService
+    participant DB as PostgreSQL (User)
+    participant MAIL as EmailService/SMTP
+
+    U-&gt;&gt;FPS: Nhập email, nhấn Gửi
+    FPS-&gt;&gt;FPS: validate format email (client)
+    FPS-&gt;&gt;AR: forgotPassword(email)
+    AR-&gt;&gt;AAPI: POST /auth/forgot-password
+    AAPI-&gt;&gt;BE: request
+    BE-&gt;&gt;DB: findUnique(email)
+    alt Email tồn tại
+        DB--&gt;&gt;BE: User found
+        BE-&gt;&gt;BE: generateOtp(); hashOtp(); set resetOtp* (TTL 10')
+        BE-&gt;&gt;DB: update User
+        BE-&gt;&gt;MAIL: sendPasswordResetOtp(email, otp)
+        MAIL--&gt;&gt;BE: (async, lỗi chỉ log, KHÔNG throw)
+    else Email không tồn tại
+        DB--&gt;&gt;BE: null
+        Note over BE: Không làm gì thêm
+    end
+    BE--&gt;&gt;AAPI: 200 {&quot;message&quot;:&quot;Nếu email tồn tại...&quot;}
+    AAPI--&gt;&gt;FPS: 200 (LUÔN 200 dù email tồn tại hay không)
+    FPS--&gt;&gt;U: Thông báo trung lập, điều hướng ResetPasswordScreen(email)
+    U-&gt;&gt;RPS: Nhập OTP + mật khẩu mới + xác nhận, nhấn Xác nhận
+    RPS-&gt;&gt;RPS: validate inline (non-empty, rule, confirm match)
+    RPS-&gt;&gt;AR: resetPassword(email, otp, newPassword, confirmNewPassword)
+    AR-&gt;&gt;AAPI: POST /auth/reset-password
+    AAPI-&gt;&gt;BE: request
+    BE-&gt;&gt;DB: findUnique(email)
+    alt User null / OTP null hoặc hết hạn / vượt max attempt
+        BE--&gt;&gt;AAPI: 400 &quot;Mã xác nhận không đúng hoặc đã hết hạn&quot;
+        AAPI--&gt;&gt;RPS: ApiResult.Error(BAD_REQUEST)
+        RPS--&gt;&gt;U: Lỗi inline trên ô OTP
+    else OTP hash không khớp
+        BE-&gt;&gt;DB: increment resetOtpAttemptCount
+        BE--&gt;&gt;AAPI: 400 (cùng message)
+        AAPI--&gt;&gt;RPS: ApiResult.Error(BAD_REQUEST)
+        RPS--&gt;&gt;U: Lỗi inline trên ô OTP
+    else OTP khớp và còn hạn
+        BE-&gt;&gt;BE: bcrypt.hash(newPassword)
+        BE-&gt;&gt;DB: update passwordHash; clear resetOtp*
+        BE--&gt;&gt;AAPI: 200 &quot;Đặt lại mật khẩu thành công&quot;
+        AAPI--&gt;&gt;RPS: ApiResult.Success
+        RPS--&gt;&gt;U: Thông báo thành công, điều hướng LoginScreen
+    end
+</pre>
+<h3 id="63-tạo-task-happy-path-nhánh-lỗi-validatenetwork">6.3 Tạo Task (happy path + nhánh lỗi validate/network)</h3>
+<pre class="mermaid">sequenceDiagram
+    actor U as User
+    participant CTS as CreateTaskScreen
+    participant TFVM as TaskFormViewModel
+    participant CUC as CreateTaskUseCase
+    participant TR as TaskRepositoryImpl
+    participant TAPI as TaskApiService
+    participant BE as TaskController/TaskService/Prisma
+    participant NAV as NavHost
+    participant TLVM as TaskListViewModel
+
+    U-&gt;&gt;CTS: Nhập Title/Description, nhấn Lưu
+    CTS-&gt;&gt;TFVM: onSubmit()
+    TFVM-&gt;&gt;TFVM: validate title.trim().isNotEmpty()
+    alt Title rỗng/chỉ khoảng trắng
+        TFVM--&gt;&gt;CTS: titleError=&quot;Tiêu đề không được để trống&quot;
+        CTS--&gt;&gt;U: Lỗi inline, KHÔNG gọi API
+    else Title hợp lệ
+        TFVM-&gt;&gt;TFVM: isSubmitting=true (disable nút Lưu)
+        TFVM-&gt;&gt;CUC: invoke(title, description)
+        CUC-&gt;&gt;CUC: validate lại (defensive)
+        CUC-&gt;&gt;TR: createTask(title, description)
+        TR-&gt;&gt;TAPI: POST /tasks (Authorization tự gắn)
+        TAPI-&gt;&gt;BE: request
+        alt Mất mạng/timeout
+            TAPI--xTR: IOException
+            TR--&gt;&gt;CUC: ApiResult.NetworkError
+            CUC--&gt;&gt;TFVM: ApiResult.NetworkError
+            TFVM--&gt;&gt;CTS: submitError=&quot;Không có kết nối mạng&quot;, isSubmitting=false
+            CTS--&gt;&gt;U: Lỗi mạng, giữ dữ liệu đã nhập, màn hình vẫn mở
+        else Server trả 400
+            BE--&gt;&gt;TAPI: 400
+            TAPI--&gt;&gt;TR: Response 400
+            TR--&gt;&gt;CUC: ApiResult.Error(BAD_REQUEST)
+            CUC--&gt;&gt;TFVM: ApiResult.Error
+            TFVM--&gt;&gt;CTS: titleError/submitError, isSubmitting=false
+            CTS--&gt;&gt;U: Lỗi inline, giữ dữ liệu
+        else Thành công
+            BE-&gt;&gt;BE: TaskService.create() - Prisma insert status=open
+            BE--&gt;&gt;TAPI: 201 {task}
+            TAPI--&gt;&gt;TR: Response 201
+            TR--&gt;&gt;CUC: ApiResult.Success(Task)
+            CUC--&gt;&gt;TFVM: ApiResult.Success
+            TFVM--&gt;&gt;CTS: isSubmitSuccess=true
+            CTS-&gt;&gt;NAV: popBackStack() + savedStateHandle(&quot;refreshNeeded&quot;=true)
+            NAV-&gt;&gt;TLVM: resume -&gt; refreshAfterFormResult()
+            TLVM-&gt;&gt;TAPI: GET /tasks
+            TAPI--&gt;&gt;TLVM: 200 [...task mới...]
+            TLVM--&gt;&gt;U: Danh sách cập nhật + toast &quot;Tạo task thành công&quot;
+        end
+    end
+</pre>
+<h3 id="64-toggle-trạng-thái-task-double-tap-protection-rollback">6.4 Toggle trạng thái task — double-tap protection + rollback</h3>
+<pre class="mermaid">sequenceDiagram
+    actor U as User
+    participant TLS as TaskListScreen (checkbox)
+    participant TLVM as TaskListViewModel
+    participant TUC as ToggleTaskStatusUseCase
+    participant TR as TaskRepositoryImpl
+    participant TAPI as TaskApiService
+    participant BE as TaskController/TaskService
+
+    U-&gt;&gt;TLS: Chạm checkbox task X (lần 1)
+    TLS-&gt;&gt;TLVM: onToggleTask(X.id)
+    TLVM-&gt;&gt;TLVM: isTogglePending==false -&gt; cho phép
+    TLVM-&gt;&gt;TLVM: optimistic update: status=DONE, isTogglePending=true
+    TLVM--&gt;&gt;TLS: UI cập nhật ngay
+    U-&gt;&gt;TLS: Chạm nhanh lần 2 (request 1 chưa xong)
+    TLS-&gt;&gt;TLVM: onToggleTask(X.id)
+    TLVM-&gt;&gt;TLVM: isTogglePending==true -&gt; BỎ QUA, không gửi request 2
+    TLVM-&gt;&gt;TUC: invoke(X.id, previousStatus=OPEN)
+    TUC-&gt;&gt;TR: toggleTaskStatus(X.id, DONE)
+    TR-&gt;&gt;TAPI: PUT /tasks/:id {status:&quot;done&quot;}
+    TAPI-&gt;&gt;BE: request
+    alt Lỗi mạng/500
+        TAPI--xTR: lỗi
+        TR--&gt;&gt;TUC: NetworkError/Error
+        TUC--&gt;&gt;TLVM: lỗi
+        TLVM-&gt;&gt;TLVM: rollback(X.id, OPEN), isTogglePending=false
+        TLVM--&gt;&gt;TLS: UI rollback về OPEN + toast lỗi
+    else Server trả 404
+        BE--&gt;&gt;TAPI: 404
+        TAPI--&gt;&gt;TR: Response 404
+        TR--&gt;&gt;TUC: ApiResult.Error(NOT_FOUND)
+        TUC--&gt;&gt;TLVM: Error(NOT_FOUND)
+        TLVM-&gt;&gt;TLVM: removeTaskFromState(X.id) (KHÔNG rollback)
+        TLVM--&gt;&gt;TLS: toast &quot;Task không còn tồn tại&quot;, task biến mất
+    else Thành công
+        BE--&gt;&gt;TAPI: 200 {task status=done}
+        TAPI--&gt;&gt;TR: Response 200
+        TR--&gt;&gt;TUC: ApiResult.Success
+        TUC--&gt;&gt;TLVM: Success
+        TLVM-&gt;&gt;TLVM: isTogglePending=false (giữ DONE)
+        TLVM--&gt;&gt;TLS: UI giữ nguyên, bỏ spinner
+    end
+</pre>
+<h2 id="7-bảo-mật-ở-cấp-classmodule">7. Bảo mật ở cấp class/module</h2>
+<h3 id="71-backend">7.1 Backend</h3>
+<ul>
+<li>Điểm validate input đầu tiên: <code>validateBody</code>/<code>validateQuery</code> middleware (Zod) — chạy trước mọi Controller.</li>
+<li>Điểm kiểm tra quyền: <code>authMiddleware</code> (JWT hợp lệ mới vào được <code>/tasks/*</code>) và <code>TaskService.assertOwnedTaskOrThrow</code> (kiểm tra <code>ownerId</code> trước Update/Delete).</li>
+<li>Secret/token: <code>JWT_SECRET</code> đọc từ biến môi trường qua <code>config/env.ts</code>, không hardcode, không log, không trả về trong bất kỳ response/error message nào.</li>
+<li>Password/OTP: luôn hash (bcrypt) trước khi lưu DB; không log plaintext ở bất kỳ tầng nào.</li>
+<li><code>/auth/forgot-password</code> luôn 200 bất kể email tồn tại — nguyên tắc anti-enumeration.</li>
+<li>Rủi ro còn lại (ngoài phạm vi LLD này): chưa có rate-limiting cho <code>/auth/*</code> — gợi ý <code>threat-modeler</code>/<code>security-auditor</code> nếu cần phân tích sâu.</li>
+</ul>
+<h3 id="72-android">7.2 Android</h3>
+<ul>
+<li><code>TokenLocalDataSource</code> là <strong>class duy nhất</strong> được đọc/ghi JWT; token không bao giờ truyền qua tham số method ở Domain/Presentation.</li>
+<li><code>ViewModel</code> là điểm validate đầu tiên trong luồng nội bộ, <code>UseCase</code> validate lại một lần nữa mang tính defensive.</li>
+<li>Không có kiểm soát quyền riêng ở Android ngoài việc hiển thị đúng dữ liệu <code>GET /tasks</code> trả về — ownership thực sự được enforce ở backend.</li>
+</ul>
+<h2 id="8-gợi-ý-điểm-cần-test-bổ-sung-android">8. Gợi ý điểm cần test bổ sung (Android)</h2>
+<ul>
+<li>Unit test <code>TaskListViewModel.onToggleTask</code>: double-tap gọi 2 lần liên tiếp → chỉ 1 lời gọi <code>toggleTaskStatusUseCase</code> được thực hiện (MockK <code>verify(exactly = 1)</code>).</li>
+<li>Unit test rollback: mock <code>toggleTaskStatusUseCase</code> trả <code>NetworkError</code>/<code>Error(FORBIDDEN)</code> → assert state trở lại <code>previousStatus</code>.</li>
+<li>Unit test <code>computeEmptyState</code>/<code>computeHasAnyTaskOverall</code>: đủ 4 tổ hợp.</li>
+<li>Turbine test cho <code>SessionEventBus</code>: emit <code>SessionExpired</code> → subscriber nhận đúng 1 lần, subscriber mới sau đó không nhận lại (do <code>replay=0</code>).</li>
+<li>Integration/Compose UI test cho 4 luồng ở mục 6.</li>
+<li>Edge case: <code>EditTaskScreen</code> khi <code>SelectedTaskHolder.consume()</code> trả <code>null</code> (giả lập process death) → assert hiển thị lỗi + tự điều hướng về <code>TaskList</code>.</li>
+<li>Gợi ý dùng <code>test-writer</code> để viết test thật dựa trên các điểm trên.</li>
+</ul>
+<h2 id="9-quyết-định-lld-đã-tự-chốt-cần-stakeholder-review">9. Quyết định LLD đã tự chốt (cần stakeholder review)</h2>
+<ol>
+<li><strong>Cấu trúc OTP</strong>: field trong <code>User</code> (<code>resetOtpHash</code>, <code>resetOtpExpiresAt</code>, <code>resetOtpAttemptCount</code>) thay vì bảng riêng; TTL 10 phút; <code>MAX_OTP_ATTEMPTS=5</code>; OTP 6 số, hash bằng bcrypt, one-time use.</li>
+<li><strong><code>TaskStatus</code> Prisma enum dùng giá trị lowercase <code>open</code>/<code>done</code></strong> để khớp JSON trực tiếp.</li>
+<li><strong>Tách <code>editTask</code> và <code>toggleTaskStatus</code> thành 2 method riêng</strong> trên <code>TaskRepository</code>.</li>
+<li><strong>4 ViewModel Auth riêng</strong> (Login/Register/ForgotPassword/ResetPassword) thay vì 1 <code>AuthViewModel</code> gộp như tên gọi ở HLD.</li>
+<li><strong>Form state giữ bằng <code>ViewModel + SavedStateHandle</code></strong>, không dùng <code>rememberSaveable</code>.</li>
+<li><strong>Filter Open/Done giữ nguyên là server-side</strong> (<code>?status=</code>); 2-loại-empty-state giải quyết bằng cờ <code>hasAnyTaskOverall</code> tính từ lần load <code>ALL</code> đầu tiên.</li>
+<li><strong>Gradle đơn-module</strong>, phân tách layer bằng package.</li>
+<li><s><code>SelectedTaskHolder</code> in-memory để truyền dữ liệu Task sang <code>EditTaskScreen</code></s> — <strong>ĐÃ THAY THẾ</strong> (xem <code>docs/API_Contract_ToDo_Android.md</code> mục 0): bổ sung endpoint <code>GET /tasks/:id</code>, <code>EditTaskScreen</code> tự fetch qua <code>GetTaskByIdUseCase</code> (mục 5), loại bỏ hoàn toàn giải pháp in-memory và rủi ro process death liên quan.</li>
+<li><strong>JWT TTL = 7 ngày</strong>, <code>SALT_ROUNDS = 10</code> cho bcrypt — giá trị giả định do SRS không có NFR cụ thể.</li>
+<li><strong>Backend validate thêm <code>confirmPassword</code></strong> ở <code>register</code>/<code>reset-password</code> (defense in depth).</li>
+</ol>
+<h2 id="10-giả-định-rủi-ro-phần-ngoài-phạm-vi">10. Giả định, Rủi ro &amp; Phần ngoài phạm vi</h2>
+<h3 id="101-giả-định-đã-đưa-ra">10.1 Giả định đã đưa ra</h3>
+<ul>
+<li>Trường <code>confirmPassword</code>/<code>confirmNewPassword</code> thực sự có mặt trong request body <code>register</code>/<code>reset-password</code> — SRS API Contract không liệt kê rõ field; <code>api-designer</code> cần chốt tên field chính thức.</li>
+<li>Field name/format JSON (<code>accessToken</code>, <code>status: &quot;open&quot;|&quot;done&quot;</code>, ISO datetime string...) ở mọi DTO trong tài liệu này là <strong>giả định thiết kế nội bộ</strong>, chưa phải contract thật.</li>
+<li>Mặc định filter <code>ALL</code> khi mở <code>TaskListScreen</code> lần đầu.</li>
+<li>JWT TTL 7 ngày, bcrypt <code>SALT_ROUNDS=10</code>, OTP TTL 10 phút, <code>MAX_OTP_ATTEMPTS=5</code> — không có NFR nguồn, chỉ là giá trị hợp lý đề xuất.</li>
+<li>Lỗi gửi email ở <code>forgotPassword</code> bị nuốt có chủ đích — trade-off bảo mật đã biết, không phải bug.</li>
+</ul>
+<h3 id="102-rủi-ro-phương-án-hld-có-khả-thi-ở-mức-chi-tiết-này-không">10.2 Rủi ro: phương án HLD có khả thi ở mức chi tiết này không</h3>
+<p>Không phát hiện vấn đề khiến phương án HLD bất khả thi ở mức chi tiết — mọi quyết định LLD ở mục 9 đều là chi tiết hóa trong phạm vi HLD đã chốt, không đổi kiến trúc cấp cao.</p>
+<h3 id="103-vấn-đề-phát-hiện-khi-detail-hóa-không-có-trong-srshld-gốc-đã-giải-quyết">10.3 Vấn đề phát hiện khi detail hóa (không có trong SRS/HLD gốc) — ĐÃ GIẢI QUYẾT</h3>
+<ul>
+<li><s>Thiếu endpoint <code>GET /tasks/:id</code> trong API Contract khiến <code>EditTaskScreen</code> phải nhận dữ liệu Task qua nav argument + <code>SelectedTaskHolder</code> in-memory, có rủi ro mất dữ liệu nếu process death.</s> <strong>ĐÃ GIẢI QUYẾT</strong>: <code>docs/API_Contract_ToDo_Android.md</code> đã chính thức bổ sung <code>GET /tasks/:id</code> (enforce ownership, 404/403 đúng theo logic <code>assertOwnedTaskOrThrow</code> dùng chung với PUT/DELETE). <code>EditTaskScreen</code> nay tự fetch dữ liệu qua <code>GetTaskByIdUseCase</code> (xem mục 3.4, 3.5, 5) — không còn phụ thuộc <code>SelectedTaskHolder</code>, không còn rủi ro process death liên quan.</li>
+</ul>
+<h3 id="104-ngoài-phạm-vi-lld-này">10.4 Ngoài phạm vi LLD này</h3>
+<ul>
+<li><strong>API Contract chi tiết chính thức</strong> (field name/schema JSON thật, message lỗi cụ thể từng field) — thuộc <code>api-designer</code>, cần làm trước khi code thật.</li>
+<li><strong>Migration/DDL Prisma thật</strong> — sau khi viết <code>schema.prisma</code> + chạy <code>prisma migrate</code>, dùng <code>db-schema-reviewer</code> để review.</li>
+<li><strong>Rate-limiting/brute-force protection cho <code>/auth/*</code></strong> — chưa thiết kế, gợi ý <code>threat-modeler</code>/<code>security-auditor</code>.</li>
+<li><strong>NFR-6 đến NFR-10</strong> (response time SLA, scalability, GDPR, minSdkVersion, uptime) vẫn chưa xác định theo SRS.</li>
+<li>Quyết định bổ sung <code>GET /tasks/:id</code> (mục 10.3) — cần <code>system-architect</code>/<code>api-designer</code> xem lại.</li>
+</ul>
+<h2 id="11-bước-tiếp-theo-gợi-ý">11. Bước tiếp theo gợi ý</h2>
+<ul>
+<li>Dùng <code>api-designer</code> để chốt chính thức field name/schema JSON cho toàn bộ <code>/auth/*</code> và <code>/tasks/*</code> (thay thế các DTO giả định ở mục 1.9/3.5), đồng thời xác nhận field <code>confirmPassword</code> và quyết định có bổ sung <code>GET /tasks/:id</code> hay không (mục 10.3).</li>
+<li>Sau khi migration Prisma thật được viết dựa trên schema ở mục 1.2, dùng <code>db-schema-reviewer</code> để review trước khi chạy production.</li>
+<li>LLD này đã đủ chi tiết (class, sequence, pseudocode, error handling, test gợi ý) để lập trình viên Backend và Android bắt đầu implement Phase 0–2 theo breakdown của HLD; dùng <code>test-writer</code> để viết test thật dựa trên các điểm gợi ý ở mục 1.12/8.</li>
+</ul>
+
+  </article>
+  <nav class="page-toc">
+    <div class="t">Trong trang này</div>
+    <ol>
+      <li><a href="#mục-0-phạm-vi-căn-cứ">Mục 0. Phạm vi &amp;amp; căn cứ</a></li>
+      <li><a href="#phần-a-backend">PHẦN A — BACKEND</a></li>
+      <li><a href="#1-backend-classmodule-design">1. Backend — Class/Module Design</a></li>
+      <li class="lvl3"><a href="#11-cấu-trúc-thư-mục-đề-xuất">1.1 Cấu trúc thư mục đề xuất</a></li>
+      <li class="lvl3"><a href="#12-prisma-schema-ý-tưởng-thiết-kế-không-phải-migration-thật">1.2 Prisma schema (Ý TƯỞNG THIẾT KẾ — không phải migration thật)</a></li>
+      <li class="lvl3"><a href="#13-quyết-định-cấu-trúc-lưu-otp-cho-forgot-password">1.3 Quyết định: cấu trúc lưu OTP cho forgot-password</a></li>
+      <li class="lvl3"><a href="#14-error-hierarchy-error-handling-tập-trung">1.4 Error hierarchy &amp;amp; error handling tập trung</a></li>
+      <li class="lvl3"><a href="#15-middlewares">1.5 Middlewares</a></li>
+      <li class="lvl3"><a href="#16-typesexpressdts-ý-tưởng-augmentation">1.6 types/express.d.ts (ý tưởng augmentation)</a></li>
+      <li class="lvl3"><a href="#17-controllers">1.7 Controllers</a></li>
+      <li class="lvl3"><a href="#18-services">1.8 Services</a></li>
+      <li class="lvl3"><a href="#19-pseudocode-nghiệp-vụ-phức-tạp">1.9 Pseudocode nghiệp vụ phức tạp</a></li>
+      <li class="lvl3"><a href="#110-validators-zod-ý-nghĩa-không-phải-code-thật">1.10 Validators (Zod — ý nghĩa, không phải code thật)</a></li>
+      <li class="lvl3"><a href="#111-bảng-xử-lý-lỗiexception-backend">1.11 Bảng xử lý lỗi/exception (Backend)</a></li>
+      <li class="lvl3"><a href="#112-gợi-ý-điểm-cần-test-backend">1.12 Gợi ý điểm cần test (Backend)</a></li>
+      <li><a href="#2-backend-sơ-đồ-lớp-tổng-thể">2. Backend — Sơ đồ lớp tổng thể</a></li>
+      <li><a href="#phần-b-android">PHẦN B — ANDROID</a></li>
+      <li><a href="#3-android-cấu-trúc-package-domaindata-layer">3. Android — Cấu trúc package &amp;amp; Domain/Data layer</a></li>
+      <li class="lvl3"><a href="#31-cấu-trúc-package-đề-xuất-gradle-đơn-module">3.1 Cấu trúc package đề xuất (Gradle đơn-module)</a></li>
+      <li class="lvl3"><a href="#32-domain-entities">3.2 Domain Entities</a></li>
+      <li class="lvl3"><a href="#33-apiresult-result-type-xuyên-suốt-repository-usecase-viewmodel">3.3 ApiResult — Result type xuyên suốt Repository → UseCase → ViewModel</a></li>
+      <li class="lvl3"><a href="#34-repository-interfaces-domain">3.4 Repository interfaces (Domain)</a></li>
+      <li class="lvl3"><a href="#35-data-layer-dto-apiservice-mapper-repository-impl">3.5 Data layer — DTO, ApiService, Mapper, Repository Impl</a></li>
+      <li class="lvl3"><a href="#36-pseudocode-safeapicall-chặn-exception-bay-lên-ui">3.6 Pseudocode: safeApiCall — chặn exception bay lên UI</a></li>
+      <li class="lvl3"><a href="#37-okhttp-interceptor-401-toàn-cục">3.7 OkHttp Interceptor — 401 toàn cục</a></li>
+      <li><a href="#4-android-presentation-layer">4. Android — Presentation layer</a></li>
+      <li class="lvl3"><a href="#41-usecases-10-cái-theo-hld">4.1 UseCases (10 cái theo HLD)</a></li>
+      <li class="lvl3"><a href="#42-viewmodel-ui-state">4.2 ViewModel &amp;amp; UI State</a></li>
+      <li class="lvl3"><a href="#43-entity-domain-vs-dto-data-mapping">4.3 Entity Domain vs DTO Data — mapping</a></li>
+      <li class="lvl3"><a href="#44-pseudocode-cho-các-cơ-chế-đặc-thù-mobile">4.4 Pseudocode cho các cơ chế đặc thù mobile</a></li>
+      <li><a href="#5-android-navigation-graph">5. Android — Navigation Graph</a></li>
+      <li><a href="#6-sequence-diagrams">6. Sequence Diagrams</a></li>
+      <li class="lvl3"><a href="#61-đăng-ký-nhận-token-vào-tasklist">6.1 Đăng ký → nhận token → vào TaskList</a></li>
+      <li class="lvl3"><a href="#62-quên-mật-khẩu-otp-đặt-lại-mật-khẩu-thành-công">6.2 Quên mật khẩu → OTP → đặt lại mật khẩu thành công</a></li>
+      <li class="lvl3"><a href="#63-tạo-task-happy-path-nhánh-lỗi-validatenetwork">6.3 Tạo Task (happy path + nhánh lỗi validate/network)</a></li>
+      <li class="lvl3"><a href="#64-toggle-trạng-thái-task-double-tap-protection-rollback">6.4 Toggle trạng thái task — double-tap protection + rollback</a></li>
+      <li><a href="#7-bảo-mật-ở-cấp-classmodule">7. Bảo mật ở cấp class/module</a></li>
+      <li class="lvl3"><a href="#71-backend">7.1 Backend</a></li>
+      <li class="lvl3"><a href="#72-android">7.2 Android</a></li>
+      <li><a href="#8-gợi-ý-điểm-cần-test-bổ-sung-android">8. Gợi ý điểm cần test bổ sung (Android)</a></li>
+      <li><a href="#9-quyết-định-lld-đã-tự-chốt-cần-stakeholder-review">9. Quyết định LLD đã tự chốt (cần stakeholder review)</a></li>
+      <li><a href="#10-giả-định-rủi-ro-phần-ngoài-phạm-vi">10. Giả định, Rủi ro &amp;amp; Phần ngoài phạm vi</a></li>
+      <li class="lvl3"><a href="#101-giả-định-đã-đưa-ra">10.1 Giả định đã đưa ra</a></li>
+      <li class="lvl3"><a href="#102-rủi-ro-phương-án-hld-có-khả-thi-ở-mức-chi-tiết-này-không">10.2 Rủi ro: phương án HLD có khả thi ở mức chi tiết này không</a></li>
+      <li class="lvl3"><a href="#103-vấn-đề-phát-hiện-khi-detail-hóa-không-có-trong-srshld-gốc-đã-giải-quyết">10.3 Vấn đề phát hiện khi detail hóa (không có trong SRS/HLD gốc) — ĐÃ GIẢI QUYẾT</a></li>
+      <li class="lvl3"><a href="#104-ngoài-phạm-vi-lld-này">10.4 Ngoài phạm vi LLD này</a></li>
+      <li><a href="#11-bước-tiếp-theo-gợi-ý">11. Bước tiếp theo gợi ý</a></li>
+    </ol>
+  </nav>
+</div>
+
+<footer class="doc-footer">
+  <span>docs/LLD_ToDo_Android.md</span>
+  <span><a href="index.html">&larr; Về trang tổng quan</a></span>
+</footer>
+</body>
+</html>
