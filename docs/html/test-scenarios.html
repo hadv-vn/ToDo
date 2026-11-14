@@ -138,7 +138,10 @@
 <h3 id="14-quy-ước">1.4 Quy ước</h3>
 <ul>
 <li><strong>Ưu tiên:</strong> P1 = luồng chính / chặn release · P2 = validate &amp; xử lý lỗi · P3 = edge case.</li>
-<li><strong>Kết quả:</strong> ghi <code>Pass</code> / <code>Fail</code> / <code>Blocked</code> vào cột <em>KQ</em> khi thực thi.</li>
+<li><strong>Kết quả:</strong> ghi <code>Pass</code> / <code>Fail</code> / <code>Blocked</code> vào cột <em>KQ</em> khi thực thi. <code>✅ Pass (tự động)</code> nghĩa là
+case đã có test code (unit JVM hoặc instrumented Compose UI) chạy thật trên emulator và pass —
+xem <a href="#5-ph%E1%BA%A1m-vi-test-t%E1%BB%B1-%C4%91%E1%BB%99ng-%C4%91%C3%A3-tri%E1%BB%83n-khai-2026-11-14">mục 5</a>. Các case còn lại vẫn cần thực thi
+thủ công như mô tả ở trên.</li>
 </ul>
 <hr />
 <h2 id="2-tổng-hợp">2. Tổng hợp</h2>
@@ -252,7 +255,7 @@
 <td>Đăng ký thành công</td>
 <td>1. Login → &quot;Chưa có tài khoản? Đăng ký&quot; <br>2. Nhập email <code>NEW</code>, mật khẩu <code>Passw0rd1</code>, xác nhận <code>Passw0rd1</code> <br>3. Nhấn <strong>Đăng ký</strong></td>
 <td>⚠️ Hiện thông báo &quot;Đăng ký thành công. Vui lòng kiểm tra email để xác thực tài khoản trước khi đăng nhập.&quot; Form bị khóa, <strong>không</strong> tự vào danh sách task. Backend gửi email xác thực</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-REG-02</td>
@@ -260,7 +263,7 @@
 <td>Xác thực email rồi đăng nhập</td>
 <td>1. Làm TC-REG-01 <br>2. Mở link xác thực trong email/log <br>3. Quay lại Login, đăng nhập bằng tài khoản vừa tạo</td>
 <td>Đăng nhập thành công, vào &quot;Task của tôi&quot; với empty-state</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14) — ban đầu <strong>Fail</strong> vì bug backend <code>markEmailVerified()</code> không chuyển <code>status</code> sang <code>ACTIVE</code>, đã sửa &amp; verify lại (auth-core commit <code>44c3be8</code>)</td>
 </tr>
 <tr>
 <td>TC-REG-03</td>
@@ -349,7 +352,7 @@
 <td>Đăng nhập thành công</td>
 <td>Nhập <code>U1</code> + mật khẩu đúng → <strong>Đăng nhập</strong></td>
 <td>Vào màn &quot;Task của tôi&quot;, danh sách task của <code>U1</code> được tải</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-LOGIN-02</td>
@@ -438,7 +441,7 @@
 <td>Đăng xuất</td>
 <td>Ở &quot;Task của tôi&quot; → nhấn <strong>Đăng xuất</strong></td>
 <td>⚠️ Về màn Login ngay, <strong>không có</strong> dialog xác nhận (SRS yêu cầu có, xem mục 4)</td>
-<td></td>
+<td>✅ Pass (tự động, thật)</td>
 </tr>
 <tr>
 <td>TC-LOGOUT-02</td>
@@ -446,7 +449,7 @@
 <td>Back sau khi đăng xuất</td>
 <td>Sau TC-LOGOUT-01 nhấn nút Back hệ thống</td>
 <td>Thoát app, <strong>không</strong> quay lại danh sách task</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-LOGOUT-03</td>
@@ -673,7 +676,7 @@
 <td>Empty-state khi chưa có task</td>
 <td>Đăng nhập user chưa có task</td>
 <td>&quot;Bạn chưa có task nào. Nhấn + để tạo task đầu tiên.&quot;</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-LIST-07</td>
@@ -715,7 +718,7 @@
 <td>Lọc Đang mở</td>
 <td>Nhấn chip <strong>Đang mở</strong></td>
 <td>Chỉ hiện task open, chip được chọn</td>
-<td></td>
+<td>✅ Pass (tự động, thật)</td>
 </tr>
 <tr>
 <td>TC-FILTER-02</td>
@@ -723,7 +726,7 @@
 <td>Lọc Đã xong</td>
 <td>Nhấn chip <strong>Đã xong</strong></td>
 <td>Chỉ hiện task done</td>
-<td></td>
+<td>✅ Pass (tự động, thật)</td>
 </tr>
 <tr>
 <td>TC-FILTER-03</td>
@@ -731,7 +734,7 @@
 <td>Về Tất cả</td>
 <td>Nhấn <strong>Tất cả</strong></td>
 <td>Hiện lại toàn bộ task</td>
-<td></td>
+<td>✅ Pass (tự động)</td>
 </tr>
 <tr>
 <td>TC-FILTER-04</td>
@@ -739,7 +742,7 @@
 <td>Empty-state theo bộ lọc</td>
 <td>Đánh dấu done hết task → chọn <strong>Đang mở</strong></td>
 <td>&quot;Không có task nào đang mở.&quot; (khác thông điệp của TC-LIST-06). Tương tự với <strong>Đã xong</strong>: &quot;Không có task nào đã xong.&quot;</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14, cả 2 vế) — ban đầu <strong>Fail</strong> khi phát hiện qua xóa task cuối cùng khớp filter (xem mục 5), đã sửa &amp; verify lại</td>
 </tr>
 <tr>
 <td>TC-FILTER-05</td>
@@ -821,7 +824,7 @@
 <td>Tạo task đủ tiêu đề + mô tả</td>
 <td>Nhấn <strong>+</strong> → nhập Tiêu đề &quot;Mua sữa&quot;, Mô tả &quot;2 hộp&quot; → <strong>Lưu</strong></td>
 <td>Đóng form, quay lại danh sách, &quot;Mua sữa&quot; xuất hiện ở trạng thái open</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-CREATE-02</td>
@@ -837,7 +840,7 @@
 <td>Tiêu đề trống</td>
 <td>Mở form, không nhập Tiêu đề</td>
 <td>⚠️ Nút <strong>Lưu</strong> bị disable, không gọi API được</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-CREATE-04</td>
@@ -910,7 +913,7 @@
 <td>Mở form Sửa</td>
 <td>Chạm vào dòng task (không chạm checkbox)</td>
 <td>Mở &quot;Sửa task&quot;, Tiêu đề/Mô tả điền sẵn đúng</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-EDIT-02</td>
@@ -918,7 +921,7 @@
 <td>Sửa thành công</td>
 <td>Đổi Tiêu đề, Mô tả → <strong>Lưu</strong></td>
 <td>Về danh sách, thông tin mới hiển thị</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-EDIT-03</td>
@@ -991,7 +994,7 @@
 <td>Open → Done</td>
 <td>Tick checkbox của task open</td>
 <td>Đổi ngay sang done (gạch ngang). Kéo refresh vẫn là done</td>
-<td></td>
+<td>✅ Pass (thật, 2026-11-14)</td>
 </tr>
 <tr>
 <td>TC-TOGGLE-02</td>
@@ -1031,7 +1034,7 @@
 <td>Chạm checkbox không mở form Sửa</td>
 <td>Chạm đúng vào checkbox</td>
 <td>Chỉ toggle, <strong>không</strong> mở màn Sửa</td>
-<td></td>
+<td>✅ Pass (tự động)</td>
 </tr>
 </tbody>
 </table>
@@ -1056,7 +1059,7 @@
 <td>Hiện dialog khi vuốt</td>
 <td>Vuốt ngang 1 dòng task</td>
 <td>Nền đỏ có chữ &quot;Xóa&quot;, dialog &quot;Xóa task&quot; với nội dung &quot;Bạn có chắc muốn xóa task này? Hành động không thể hoàn tác.&quot;</td>
-<td></td>
+<td>✅ Pass (tự động, thật)</td>
 </tr>
 <tr>
 <td>TC-DEL-02</td>
@@ -1064,7 +1067,7 @@
 <td>Hủy xóa</td>
 <td>Trong dialog nhấn <strong>Hủy</strong></td>
 <td>Dialog đóng, dòng trở về vị trí cũ, task vẫn còn</td>
-<td></td>
+<td>✅ Pass (tự động, thật)</td>
 </tr>
 <tr>
 <td>TC-DEL-03</td>
@@ -1072,7 +1075,7 @@
 <td>Xác nhận xóa</td>
 <td>Nhấn <strong>Xóa</strong></td>
 <td>Task biến mất khỏi danh sách. Refresh lại không thấy</td>
-<td></td>
+<td>✅ Pass (tự động, thật, 2026-11-14) — khi xóa task cuối cùng khớp filter từng làm màn hình trắng (bug đã sửa, xem mục 5)</td>
 </tr>
 <tr>
 <td>TC-DEL-04</td>
@@ -1248,6 +1251,80 @@
 </tbody>
 </table>
 </div>
+<hr />
+<h2 id="5-phạm-vi-test-tự-động-đã-triển-khai-2026-11-14">5. Phạm vi test tự động đã triển khai (2026-11-14)</h2>
+<p>Đã viết thêm test code và chạy thật trên emulator (<code>./gradlew :app:testDebugUnitTest</code> +
+<code>./gradlew :app:connectedDebugAndroidTest</code>, cả hai <strong>BUILD SUCCESSFUL</strong>, không còn tình trạng
+&quot;chưa chạy thật được&quot; như trước) cho các nhóm còn thiếu coverage:</p>
+<ul>
+<li><strong>Unit test (JVM, <code>TaskListViewModelTest.kt</code>)</strong>: <code>onDeleteTaskConfirmed</code> (thành công/404/403/mất
+mạng/double-confirm), <code>onToggleTask</code> 403, <code>onFilterSelected</code> lọc đúng nội dung (không chỉ
+empty-state), <code>onPullToRefresh</code> thành công giữ nguyên filter.</li>
+<li><strong>Unit test mới (<code>NavGraphSessionExpiredMessageTest.kt</code>)</strong>: tách logic chọn message khi 401
+(<code>sessionExpiredMessageFor</code> trong <code>NavGraph.kt</code>) thành hàm thuần để test — xác nhận đúng message
+phân biệt TC-SESS-01 (route thường) và TC-SESS-02 (route Tạo/Sửa task). <strong>Chưa</strong> test được phần
+điều hướng/xóa backstack thật (<code>navController.navigate(...)</code>) vì <code>NavGraph</code> dùng <code>hiltViewModel()</code>
+và project chưa có Hilt test module — phần đó (back không quay lại danh sách) vẫn cần làm thủ công.</li>
+<li><strong>Instrumented test (Compose UI, <code>TaskListScreenTest.kt</code>)</strong>: thêm swipe-xóa xác nhận/hủy
+(TC-DEL-01/02/03), lọc theo chip + empty-state riêng theo filter (TC-FILTER-01→04), chạm checkbox
+không mở form Sửa (TC-TOGGLE-06), đăng xuất gọi callback ngay không có dialog xác nhận
+(TC-LOGOUT-01).</li>
+</ul>
+<p><strong>Cố tình để lại thủ công</strong> (không tự động hóa ở vòng này) vì lý do cụ thể:</p>
+<div class="table-wrap">
+<table>
+<thead>
+<tr>
+<th>Nhóm</th>
+<th>Lý do</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>TC-OWN-01/03</td>
+<td>Gọi API chéo user bằng curl/Postman — thuộc phạm vi e2e test của <code>auth-core</code> (đã có, xem <code>backend/test/todo-task-api.e2e-spec.ts</code>), không phải test app Android</td>
+</tr>
+<tr>
+<td>TC-PERF-01/02</td>
+<td>Cuộn mượt/giữ trạng thái khi app vào background cần quan sát trực quan hoặc công cụ profiling (Perfetto), không có tiêu chí pass/fail rõ ràng để assert</td>
+</tr>
+<tr>
+<td>TC-LOGIN-09, TC-LOGOUT-03, TC-SESS (phần điều hướng)</td>
+<td>Cần kill process thật/thu hồi session phía server/NavController thật — vượt ngoài phạm vi Compose UI test dựng bằng fake repository hiện tại (TC-LOGOUT-02 đã verify thật, xem mục 6)</td>
+</tr>
+<tr>
+<td>TC-REFRESH-03/04, TC-CREATE-06/07, TC-EDIT-06/07, TC-TOGGLE-03/04, TC-DEL-04/05</td>
+<td>Cần giả lập mất mạng/mạng chậm thật trên thiết bị (<code>adb shell svc wifi disable</code>) — phần logic rollback/giữ dữ liệu tương ứng <strong>đã</strong> được test ở tầng ViewModel (unit test, dùng <code>ApiResult.NetworkError</code>/<code>CompletableDeferred</code> giả lập), chỉ riêng phần &quot;thao tác tay + quan sát UI thật&quot; là còn thủ công</td>
+</tr>
+</tbody>
+</table>
+</div>
+<hr />
+<h2 id="6-thực-thi-thật-trên-emulator-backend-thật-2026-11-14">6. Thực thi thật trên emulator + backend thật (2026-11-14)</h2>
+<p>Cài APK debug lên emulator thật (<code>SafeCall_API34</code>), chạy <code>auth-core</code> thật ở <code>localhost:8081</code>,
+thao tác qua <code>adb</code> (tap/input/screenshot) thay vì đọc email thì tạo token xác thực trực tiếp trong
+DB (tương đương &quot;mở link xác thực trong email&quot;, xem mục 1.1) để kiểm tra golden-path đầy đủ:
+đăng ký → xác thực → đăng nhập → tạo task → toggle → lọc → sửa → xóa (hủy rồi xác nhận) → đăng xuất
+→ Back sau đăng xuất. Toàn bộ các case đã đổi KQ thành <code>✅ Pass (thật, 2026-11-14)</code> ở trên đều được
+verify bằng cách này, không chỉ suy luận từ code.</p>
+<p><strong>2 bug thật được phát hiện qua quá trình này (cả hai đã sửa và verify lại bằng cách tái hiện qua
+API/app thật, không chỉ đọc code):</strong></p>
+<ol>
+<li><strong>Backend <code>auth-core</code></strong> — <code>PrismaUserRepository.markEmailVerified()</code> chỉ ghi <code>emailVerifiedAt</code>,
+không chuyển <code>status</code> từ <code>PENDING_VERIFICATION</code> sang <code>ACTIVE</code>. Hệ quả: <strong>mọi</strong> user xác thực
+email xong vẫn bị <code>login()</code> chặn vĩnh viễn với <code>403 ACCOUNT_EMAIL_NOT_VERIFIED</code> — chặn đứng toàn
+bộ TC-REG-02 và mọi case cần đăng nhập. Sửa ở <code>auth-core</code> commit <code>44c3be8</code>
+(<code>fix(auth): activate user on email verification, not just mark timestamp</code>), bump submodule ở
+ToDo commit <code>571d860</code>.</li>
+<li><strong>Android app</strong> — <code>TaskListViewModel.removeTaskFromState()</code> và 2 nhánh 404 (của
+<code>onDeleteTaskConfirmed</code>/<code>onToggleTask</code>) chỉ <code>filterNot</code> khỏi <code>tasks</code>, không gọi lại
+<code>computeEmptyState()</code>. Hệ quả: xóa/loại nốt task cuối cùng khớp filter hiện tại → <code>tasks</code> rỗng
+nhưng <code>emptyStateType</code> vẫn giữ giá trị <code>null</code> cũ → UI không khớp nhánh list lẫn nhánh
+empty-state → <strong>màn hình trắng trơn</strong> thay vì thông điệp đúng (ảnh hưởng TC-FILTER-04,
+TC-DEL-03, TC-TOGGLE-05). Sửa bằng hàm <code>stateAfterRemovingTask()</code> mới trong
+<code>TaskListViewModel.kt</code>, có thêm 2 unit test tái hiện đúng kịch bản này trong
+<code>TaskListViewModelTest.kt</code>.</li>
+</ol>
 
   </article>
   <nav class="page-toc">
@@ -1275,6 +1352,8 @@
       <li class="lvl3"><a href="#313-ownership-dữ-liệu-cũ-fr-15">3.13 Ownership / dữ liệu cũ — FR-15</a></li>
       <li class="lvl3"><a href="#314-hiệu-năng-vòng-đời-app-fr-16-fr-17">3.14 Hiệu năng &amp;amp; vòng đời app — FR-16, FR-17</a></li>
       <li><a href="#4-điểm-lệch-giữa-app-và-srs-cần-xác-nhận">4. Điểm lệch giữa app và SRS — cần xác nhận</a></li>
+      <li><a href="#5-phạm-vi-test-tự-động-đã-triển-khai-2026-11-14">5. Phạm vi test tự động đã triển khai (2026-11-14)</a></li>
+      <li><a href="#6-thực-thi-thật-trên-emulator-backend-thật-2026-11-14">6. Thực thi thật trên emulator + backend thật (2026-11-14)</a></li>
     </ol>
   </nav>
 </div>

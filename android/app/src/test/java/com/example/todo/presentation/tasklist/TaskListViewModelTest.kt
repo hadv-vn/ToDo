@@ -54,6 +54,14 @@ class TaskListViewModelTest {
         createdAt = Instant.parse("2026-10-14T08:30:00.000Z"),
         updatedAt = Instant.parse("2026-10-14T08:30:00.000Z")
     )
+    private val taskDone = Task(
+        id = "task-2",
+        title = "Don nha",
+        description = null,
+        status = TaskStatus.DONE,
+        createdAt = Instant.parse("2026-10-14T08:30:00.000Z"),
+        updatedAt = Instant.parse("2026-10-14T08:30:00.000Z")
+    )
 
     @Before
     fun setUp() {
@@ -252,6 +260,251 @@ class TaskListViewModelTest {
             assertEquals(1, afterRefreshError.tasks.size) // KHÔNG xóa tasks cũ khi lỗi
             assertEquals("task-1", afterRefreshError.tasks.first().id)
             assertEquals(true, afterRefreshError.error?.isNetworkError)
+        }
+    }
+
+    @Test
+    fun `onPullToRefresh thanh cong thi cap nhat du lieu va giu nguyen filter dang ap dung`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(TaskFilter.OPEN) } returnsMany listOf(
+            ApiResult.Success(listOf(taskOpen)), // lần gọi khi onFilterSelected(OPEN)
+            ApiResult.Success(listOf(taskOpen, taskDone)) // lần gọi lại do onPullToRefresh, có thêm task mới
+        )
+        coEvery { getTasksUseCase(TaskFilter.ALL) } returns ApiResult.Success(listOf(taskOpen))
+
+        val viewModel = createViewModel()
+
+        // Không dùng Turbine đếm từng emission ở đây — mockk `returns`/`returnsMany` không có suspension
+        // thật nào dưới UnconfinedTestDispatcher, nên toàn bộ chuỗi update bên trong mỗi lệnh gọi đã
+        // chạy xong đồng bộ ngay khi hàm gọi nó return; `.value` đọc trực tiếp state đã settled cuối
+        // cùng, tránh phải đếm chính xác số lần StateFlow phát ra (dễ sai, xem các test onDeleteTaskConfirmed).
+        viewModel.onFilterSelected(TaskFilter.OPEN)
+        assertEquals(TaskFilter.OPEN, viewModel.uiState.value.filter)
+        assertEquals(1, viewModel.uiState.value.tasks.size)
+
+        viewModel.onPullToRefresh()
+        val afterRefresh = viewModel.uiState.value
+        assertEquals(TaskFilter.OPEN, afterRefresh.filter) // vẫn giữ filter OPEN
+        assertEquals(2, afterRefresh.tasks.size)
+        assertFalse(afterRefresh.isRefreshing)
+    }
+
+    // --- onFilterSelected (TC-FILTER-01/02/03) — chọn chip lọc đúng nội dung hiển thị ---
+
+    @Test
+    fun `onFilterSelected OPEN thi chi con task dang mo trong danh sach`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(TaskFilter.ALL) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+        coEvery { getTasksUseCase(TaskFilter.OPEN) } returns ApiResult.Success(listOf(taskOpen))
+
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem() // init -> ALL: [taskOpen, taskDone]
+
+            viewModel.onFilterSelected(TaskFilter.OPEN)
+            val afterFilterChanged = awaitItem() // đổi filter, giữ danh sách cũ (showLoading=false vì tasks không rỗng)
+            assertEquals(TaskFilter.OPEN, afterFilterChanged.filter)
+
+            val afterLoadOpen = awaitItem()
+            assertEquals(1, afterLoadOpen.tasks.size)
+            assertEquals("task-1", afterLoadOpen.tasks.first().id)
+        }
+    }
+
+    @Test
+    fun `onFilterSelected DONE thi chi con task da xong trong danh sach`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(TaskFilter.ALL) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+        coEvery { getTasksUseCase(TaskFilter.DONE) } returns ApiResult.Success(listOf(taskDone))
+
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem() // init -> ALL: [taskOpen, taskDone]
+
+            viewModel.onFilterSelected(TaskFilter.DONE)
+            awaitItem() // đổi filter
+
+            val afterLoadDone = awaitItem()
+            assertEquals(1, afterLoadDone.tasks.size)
+            assertEquals("task-2", afterLoadDone.tasks.first().id)
+        }
+    }
+
+    @Test
+    fun `onFilterSelected ve ALL sau khi dang loc thi hien lai toan bo task`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(TaskFilter.ALL) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+        coEvery { getTasksUseCase(TaskFilter.OPEN) } returns ApiResult.Success(listOf(taskOpen))
+
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem() // init -> ALL: [taskOpen, taskDone]
+
+            viewModel.onFilterSelected(TaskFilter.OPEN)
+            awaitItem() // đổi filter
+            awaitItem() // load OPEN: [taskOpen]
+
+            viewModel.onFilterSelected(TaskFilter.ALL)
+            awaitItem() // đổi filter
+            val afterBackToAll = awaitItem()
+            assertEquals(2, afterBackToAll.tasks.size)
+        }
+    }
+
+    // --- onDeleteTaskConfirmed (TC-DEL-03/04/05) ---
+
+    // Không dùng Turbine đếm từng emission cho 4 test onDeleteTaskConfirmed dưới đây — mỗi nhánh kết
+    // quả cập nhật `_uiState` qua 1-2 lệnh `.update{}` liên tiếp KHÔNG có suspension thật nào chen giữa
+    // (mockk `returns` trả ngay, không phải CompletableDeferred), nên dưới UnconfinedTestDispatcher
+    // toàn bộ chuỗi đã chạy xong đồng bộ ngay khi `onDeleteTaskConfirmed()` return — đọc thẳng `.value`
+    // đơn giản và đúng hơn là đếm chính xác số lần StateFlow phát ra.
+
+    @Test
+    fun `onDeleteTaskConfirmed thanh cong thi loai task khoi danh sach`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+        coEvery { deleteTaskUseCase("task-1") } returns ApiResult.Success(Unit)
+
+        val viewModel = createViewModel()
+
+        viewModel.onDeleteTaskConfirmed("task-1")
+
+        val afterDelete = viewModel.uiState.value
+        assertTrue(afterDelete.tasks.isEmpty())
+        assertTrue("task-1" !in afterDelete.pendingDeleteTaskIds)
+        coVerify(exactly = 1) { deleteTaskUseCase("task-1") }
+    }
+
+    @Test
+    fun `onDeleteTaskConfirmed 404 thi loai task va bao da bi xoa truoc do`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+        coEvery { deleteTaskUseCase("task-1") } returns
+            ApiResult.Error(ApiErrorCode.NOT_FOUND, "Task không tồn tại")
+
+        val viewModel = createViewModel()
+
+        viewModel.onDeleteTaskConfirmed("task-1")
+
+        val afterNotFound = viewModel.uiState.value
+        assertTrue(afterNotFound.tasks.isEmpty())
+        assertEquals("Task này đã được xóa trước đó", afterNotFound.error?.message)
+    }
+
+    @Test
+    fun `onDeleteTaskConfirmed 403 thi giu task va bao khong co quyen`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+        coEvery { deleteTaskUseCase("task-1") } returns
+            ApiResult.Error(ApiErrorCode.FORBIDDEN, "Forbidden")
+
+        val viewModel = createViewModel()
+
+        viewModel.onDeleteTaskConfirmed("task-1")
+
+        val afterForbidden = viewModel.uiState.value
+        assertEquals(1, afterForbidden.tasks.size) // KHÔNG loại khỏi danh sách
+        assertEquals("Bạn không có quyền thực hiện thao tác này", afterForbidden.error?.message)
+        assertTrue("task-1" !in afterForbidden.pendingDeleteTaskIds)
+    }
+
+    @Test
+    fun `onDeleteTaskConfirmed mat mang thi giu task trong danh sach va bao loi mang`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+        coEvery { deleteTaskUseCase("task-1") } returns ApiResult.NetworkError
+
+        val viewModel = createViewModel()
+
+        viewModel.onDeleteTaskConfirmed("task-1")
+
+        val afterNetworkError = viewModel.uiState.value
+        assertEquals(1, afterNetworkError.tasks.size) // task vẫn còn
+        assertEquals(true, afterNetworkError.error?.isNetworkError)
+    }
+
+    @Test
+    fun `onDeleteTaskConfirmed goi lan 2 khi lan dau chua xong thi chi goi UseCase 1 lan`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+        val pending = CompletableDeferred<ApiResult<Unit>>()
+        coEvery { deleteTaskUseCase("task-1") } coAnswers { pending.await() }
+
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem() // init -> [taskOpen]
+
+            viewModel.onDeleteTaskConfirmed("task-1") // lần 1 -> pendingDeleteTaskIds += task-1, suspend ở pending.await()
+            val afterFirstConfirm = awaitItem()
+            assertTrue("task-1" in afterFirstConfirm.pendingDeleteTaskIds)
+
+            viewModel.onDeleteTaskConfirmed("task-1") // lần 2 ngay sau đó -> bị bỏ qua (đã nằm trong pendingDeleteTaskIds)
+
+            pending.complete(ApiResult.Success(Unit))
+            val afterSuccess = awaitItem()
+            assertTrue(afterSuccess.tasks.isEmpty())
+        }
+
+        coVerify(exactly = 1) { deleteTaskUseCase("task-1") }
+    }
+
+    // --- Bug đã sửa: xóa/loại task cuối cùng khớp filter hiện tại phải tính lại emptyStateType,
+    // không được để màn hình trắng (xem TaskListViewModel.stateAfterRemovingTask) ---
+
+    @Test
+    fun `xoa thanh cong task cuoi cung khop filter thi emptyStateType duoc tinh lai dung`() =
+        runTest(testDispatcher) {
+            coEvery { getTasksUseCase(TaskFilter.ALL) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+            coEvery { getTasksUseCase(TaskFilter.DONE) } returns ApiResult.Success(listOf(taskDone))
+            coEvery { deleteTaskUseCase("task-2") } returns ApiResult.Success(Unit)
+
+            val viewModel = createViewModel()
+            viewModel.onFilterSelected(TaskFilter.DONE)
+            assertEquals(1, viewModel.uiState.value.tasks.size)
+
+            viewModel.onDeleteTaskConfirmed("task-2")
+
+            val after = viewModel.uiState.value
+            assertTrue(after.tasks.isEmpty())
+            // Trước khi sửa bug: emptyStateType vẫn là null (giá trị cũ từ lúc còn 1 task) -> UI
+            // không khớp nhánh list lẫn empty-state, màn hình trắng trơn.
+            assertEquals(EmptyStateType.NO_TASKS_MATCH_FILTER, after.emptyStateType)
+        }
+
+    @Test
+    fun `toggle 404 loai task cuoi cung khop filter thi emptyStateType duoc tinh lai dung`() =
+        runTest(testDispatcher) {
+            coEvery { getTasksUseCase(TaskFilter.ALL) } returns ApiResult.Success(listOf(taskOpen))
+            coEvery { getTasksUseCase(TaskFilter.OPEN) } returns ApiResult.Success(listOf(taskOpen))
+            coEvery { toggleTaskStatusUseCase("task-1", TaskStatus.OPEN) } returns
+                ApiResult.Error(ApiErrorCode.NOT_FOUND, "Task không tồn tại")
+
+            val viewModel = createViewModel()
+            viewModel.onFilterSelected(TaskFilter.OPEN)
+            assertEquals(1, viewModel.uiState.value.tasks.size)
+
+            viewModel.onToggleTask("task-1")
+
+            val after = viewModel.uiState.value
+            assertTrue(after.tasks.isEmpty())
+            assertEquals(EmptyStateType.NO_TASKS_MATCH_FILTER, after.emptyStateType)
+        }
+
+    // --- onToggleTask 403 (ownership, TC-TOGGLE adjacent/TC-OWN-02) ---
+
+    @Test
+    fun `onToggleTask 403 thi rollback ve trang thai cu va bao khong co quyen`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+        coEvery { toggleTaskStatusUseCase("task-1", TaskStatus.OPEN) } returns
+            ApiResult.Error(ApiErrorCode.FORBIDDEN, "Forbidden")
+
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem() // sau init -> load thành công (OPEN)
+
+            viewModel.onToggleTask("task-1")
+            val optimistic = awaitItem() // optimistic update: DONE
+            assertEquals(TaskStatus.DONE, optimistic.tasks.first().status)
+
+            val afterForbidden = awaitItem()
+            assertEquals(TaskStatus.OPEN, afterForbidden.tasks.first().status) // rollback
+            assertEquals("Bạn không có quyền thực hiện thao tác này", afterForbidden.error?.message)
         }
     }
 }

@@ -196,10 +196,8 @@ class TaskListViewModel @Inject constructor(
                             // (loại task + set error) để tránh phát 2 state riêng biệt (flicker 1
                             // frame "đã loại task nhưng chưa có thông báo" không cần thiết).
                             _uiState.update { state ->
-                                state.copy(
-                                    tasks = state.tasks.filterNot { it.id == taskId },
-                                    error = UiError("Task không còn tồn tại")
-                                )
+                                stateAfterRemovingTask(state, taskId)
+                                    .copy(error = UiError("Task không còn tồn tại"))
                             }
                         }
                         ApiErrorCode.FORBIDDEN -> {
@@ -258,8 +256,7 @@ class TaskListViewModel @Inject constructor(
                         ApiErrorCode.NOT_FOUND -> {
                             // MỘT update duy nhất (loại task + set error), lý do xem onToggleTask.
                             _uiState.update { state ->
-                                state.copy(
-                                    tasks = state.tasks.filterNot { it.id == taskId },
+                                stateAfterRemovingTask(state, taskId).copy(
                                     pendingDeleteTaskIds = state.pendingDeleteTaskIds - taskId,
                                     error = UiError("Task này đã được xóa trước đó")
                                 )
@@ -318,7 +315,25 @@ class TaskListViewModel @Inject constructor(
     }
 
     private fun removeTaskFromState(taskId: String) {
-        _uiState.update { state -> state.copy(tasks = state.tasks.filterNot { it.id == taskId }) }
+        _uiState.update { state -> stateAfterRemovingTask(state, taskId) }
+    }
+
+    /**
+     * Loại 1 task khỏi `tasks` VÀ tính lại `emptyStateType`/`hasAnyTaskOverall` trong CÙNG một
+     * bước — bug đã sửa: trước đây `tasks` được lọc trực tiếp bằng `filterNot` ở 3 chỗ (xóa thành
+     * công, xóa 404, toggle 404) mà không gọi lại [computeEmptyState], nên khi xóa/loại nốt task
+     * cuối cùng khớp filter hiện tại, `tasks` rỗng nhưng `emptyStateType` vẫn giữ giá trị `null` cũ
+     * (từ lần load trước đó còn task) -> UI không khớp nhánh list lẫn nhánh empty-state, màn hình
+     * trắng trơn cho tới khi đổi filter/pull-to-refresh/thử lại kích hoạt loadTasks() mới.
+     */
+    private fun stateAfterRemovingTask(state: TaskListUiState, taskId: String): TaskListUiState {
+        val newTasks = state.tasks.filterNot { it.id == taskId }
+        val hasAnyTaskOverall = computeHasAnyTaskOverall(state, state.filter, newTasks)
+        return state.copy(
+            tasks = newTasks,
+            hasAnyTaskOverall = hasAnyTaskOverall,
+            emptyStateType = computeEmptyState(newTasks, state.filter, hasAnyTaskOverall)
+        )
     }
 
     private fun clearPendingDelete(taskId: String) {

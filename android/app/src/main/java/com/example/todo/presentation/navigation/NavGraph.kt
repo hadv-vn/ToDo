@@ -62,6 +62,21 @@ import kotlinx.coroutines.launch
  *   backstack (đúng pseudocode LLD 4.4c), và `launch{}` show snackbar KHÔNG await (fire-and-forget)
  *   để không làm chậm việc điều hướng về Login.
  */
+/**
+ * Chọn message snackbar khi nhận [SessionEvent.SessionExpired] — tách thành hàm thuần (không phụ
+ * thuộc Compose/NavController) để unit test được ở JVM test (xem NavGraphSessionExpiredMessageTest),
+ * phân biệt 2 kịch bản TC-SESS-01 (đang ở danh sách/màn khác) và TC-SESS-02 (đang ở form Tạo/Sửa,
+ * mất dữ liệu đang nhập).
+ */
+internal fun sessionExpiredMessageFor(currentRoute: String?): String {
+    val isInTaskForm = currentRoute == Routes.CREATE_TASK || currentRoute == Routes.EDIT_TASK
+    return if (isInTaskForm) {
+        "Phiên đăng nhập đã hết hạn. Dữ liệu bạn đang nhập sẽ không được lưu, vui lòng đăng nhập lại."
+    } else {
+        "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại"
+    }
+}
+
 @Composable
 fun NavGraph(navController: NavHostController = rememberNavController()) {
     val snackbarHostState = remember { SnackbarHostState() }
@@ -74,12 +89,7 @@ fun NavGraph(navController: NavHostController = rememberNavController()) {
                     // Route pattern (vd "edit_task/{taskId}"), không phải route đã điền taskId
                     // thật -> so khớp trực tiếp với hằng số Routes, không cần đọc taskId.
                     val currentRoute = navController.currentDestination?.route
-                    val isInTaskForm = currentRoute == Routes.CREATE_TASK || currentRoute == Routes.EDIT_TASK
-                    val message = if (isInTaskForm) {
-                        "Phiên đăng nhập đã hết hạn. Dữ liệu bạn đang nhập sẽ không được lưu, vui lòng đăng nhập lại."
-                    } else {
-                        "Phiên đăng nhập đã hết hạn, vui lòng đăng nhập lại"
-                    }
+                    val message = sessionExpiredMessageFor(currentRoute)
                     navController.navigate(Routes.LOGIN) {
                         popUpTo(0) { inclusive = true }
                         launchSingleTop = true
