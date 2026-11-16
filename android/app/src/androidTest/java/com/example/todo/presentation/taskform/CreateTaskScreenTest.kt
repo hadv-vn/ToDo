@@ -8,9 +8,15 @@ import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.SavedStateHandle
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
 import com.example.todo.domain.model.TaskStatus
+import com.example.todo.domain.model.Category
+import com.example.todo.domain.repository.CategoryRepository
+import com.example.todo.domain.repository.PreferencesRepository
 import com.example.todo.domain.repository.TaskRepository
+import com.example.todo.domain.usecase.category.GetCategoriesUseCase
+import com.example.todo.domain.usecase.preferences.GetInsertPositionPreferenceUseCase
 import com.example.todo.domain.usecase.task.CreateTaskUseCase
 import com.example.todo.domain.usecase.task.GetTaskByIdUseCase
 import com.example.todo.domain.usecase.task.UpdateTaskUseCase
@@ -52,7 +58,14 @@ class CreateTaskScreenTest {
     private class FakeTaskRepository : TaskRepository {
         override suspend fun getTasks(filter: TaskStatus?) = throw NotImplementedError()
         override suspend fun getTaskById(id: String) = throw NotImplementedError()
-        override suspend fun createTask(title: String, description: String?): ApiResult<Task> {
+        override suspend fun createTask(
+            title: String,
+            description: String?,
+            insertPosition: InsertPosition,
+            categoryId: String?,
+            dueDate: java.time.LocalDate?,
+            priority: com.example.todo.domain.model.TaskPriority
+        ): ApiResult<Task> {
             return ApiResult.Success(
                 Task(
                     id = "new-task",
@@ -60,13 +73,38 @@ class CreateTaskScreenTest {
                     description = description,
                     status = TaskStatus.OPEN,
                     createdAt = Instant.now(),
-                    updatedAt = Instant.now()
+                    updatedAt = Instant.now(),
+                    categoryId = categoryId,
+                    dueDate = dueDate,
+                    priority = priority
                 )
             )
         }
-        override suspend fun editTask(id: String, title: String, description: String?) = throw NotImplementedError()
+        override suspend fun editTask(
+            id: String,
+            title: String,
+            description: String?,
+            categoryId: String?,
+            dueDate: java.time.LocalDate?,
+            priority: com.example.todo.domain.model.TaskPriority
+        ) = throw NotImplementedError()
         override suspend fun toggleTaskStatus(id: String, newStatus: TaskStatus) = throw NotImplementedError()
+        override suspend fun reorderTask(id: String, afterTaskId: String?, beforeTaskId: String?) =
+            throw NotImplementedError()
         override suspend fun deleteTask(id: String) = throw NotImplementedError()
+    }
+
+    private class FakePreferencesRepository : PreferencesRepository {
+        override suspend fun getInsertPosition(): InsertPosition = InsertPosition.TOP
+        override suspend fun setInsertPosition(position: InsertPosition) = Unit
+    }
+
+    private class FakeCategoryRepository : CategoryRepository {
+        override suspend fun getCategories(): ApiResult<List<Category>> = ApiResult.Success(emptyList())
+        override suspend fun createCategory(name: String, color: String?, icon: String?) = throw NotImplementedError()
+        override suspend fun updateCategory(id: String, name: String, color: String, icon: String) =
+            throw NotImplementedError()
+        override suspend fun deleteCategory(id: String) = throw NotImplementedError()
     }
 
     private fun createFormViewModel(): TaskFormViewModel {
@@ -75,7 +113,9 @@ class CreateTaskScreenTest {
             savedStateHandle = SavedStateHandle(), // taskId == null -> Create mode
             getTaskByIdUseCase = GetTaskByIdUseCase(repository),
             createTaskUseCase = CreateTaskUseCase(repository),
-            updateTaskUseCase = UpdateTaskUseCase(repository)
+            updateTaskUseCase = UpdateTaskUseCase(repository),
+            getInsertPositionPreferenceUseCase = GetInsertPositionPreferenceUseCase(FakePreferencesRepository()),
+            getCategoriesUseCase = GetCategoriesUseCase(FakeCategoryRepository())
         )
     }
 

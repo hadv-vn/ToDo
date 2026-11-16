@@ -20,6 +20,9 @@ import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import com.example.todo.core.session.SessionEvent
 import com.example.todo.presentation.auth.ForgotPasswordScreen
+import com.example.todo.presentation.category.CategoryListScreen
+import com.example.todo.presentation.category.CreateCategoryScreen
+import com.example.todo.presentation.category.EditCategoryScreen
 import com.example.todo.presentation.auth.LoginScreen
 import com.example.todo.presentation.auth.RegisterScreen
 import com.example.todo.presentation.auth.ResetPasswordScreen
@@ -69,7 +72,8 @@ import kotlinx.coroutines.launch
  * mất dữ liệu đang nhập).
  */
 internal fun sessionExpiredMessageFor(currentRoute: String?): String {
-    val isInTaskForm = currentRoute == Routes.CREATE_TASK || currentRoute == Routes.EDIT_TASK
+    val isInTaskForm = currentRoute == Routes.CREATE_TASK || currentRoute == Routes.EDIT_TASK ||
+        currentRoute == Routes.CREATE_CATEGORY || currentRoute == Routes.EDIT_CATEGORY
     return if (isInTaskForm) {
         "Phiên đăng nhập đã hết hạn. Dữ liệu bạn đang nhập sẽ không được lưu, vui lòng đăng nhập lại."
     } else {
@@ -162,6 +166,7 @@ private fun NavGraphHost(navController: NavHostController) {
                 },
                 onNavigateToCreateTask = { navController.navigate(Routes.CREATE_TASK) },
                 onNavigateToEditTask = { taskId -> navController.navigate(Routes.editTask(taskId)) },
+                onNavigateToCategoryList = { navController.navigate(Routes.CATEGORY_LIST) },
                 refreshNeeded = refreshNeeded,
                 onRefreshConsumed = {
                     backStackEntry.savedStateHandle[Routes.TASK_LIST_REFRESH_NEEDED_KEY] = false
@@ -175,7 +180,8 @@ private fun NavGraphHost(navController: NavHostController) {
                     navController.previousBackStackEntry?.savedStateHandle
                         ?.set(Routes.TASK_LIST_REFRESH_NEEDED_KEY, true)
                     navController.popBackStack()
-                }
+                },
+                onNavigateToCategoryList = { navController.navigate(Routes.CATEGORY_LIST) }
             )
         }
         composable(
@@ -191,7 +197,31 @@ private fun NavGraphHost(navController: NavHostController) {
                     navController.previousBackStackEntry?.savedStateHandle
                         ?.set(Routes.TASK_LIST_REFRESH_NEEDED_KEY, true)
                     navController.popBackStack()
-                }
+                },
+                onNavigateToCategoryList = { navController.navigate(Routes.CATEGORY_LIST) }
+            )
+        }
+        // FR-22 (docs/Task_Category_ToDo.md mục 5.4) — Quản lý danh mục.
+        composable(Routes.CATEGORY_LIST) {
+            CategoryListScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onNavigateToCreateCategory = { navController.navigate(Routes.CREATE_CATEGORY) },
+                onNavigateToEditCategory = { categoryId -> navController.navigate(Routes.editCategory(categoryId)) }
+            )
+        }
+        composable(Routes.CREATE_CATEGORY) {
+            CreateCategoryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onSubmitSuccess = { navController.popBackStack() }
+            )
+        }
+        composable(
+            route = Routes.EDIT_CATEGORY,
+            arguments = listOf(navArgument(Routes.EDIT_CATEGORY_ARG_CATEGORY_ID) { type = NavType.StringType })
+        ) {
+            EditCategoryScreen(
+                onNavigateBack = { navController.popBackStack() },
+                onSubmitSuccess = { navController.popBackStack() }
             )
         }
     }

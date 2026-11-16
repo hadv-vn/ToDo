@@ -1,6 +1,7 @@
 package com.example.todo.data.remote.api
 
 import com.example.todo.data.remote.dto.task.CreateTaskRequestDto
+import com.example.todo.data.remote.dto.task.ReorderTaskRequestDto
 import com.example.todo.data.remote.dto.task.TaskEnvelopeDto
 import com.example.todo.data.remote.dto.task.TaskListEnvelopeDto
 import com.example.todo.data.remote.dto.task.UpdateTaskDetailsRequestDto
@@ -9,6 +10,7 @@ import retrofit2.Response
 import retrofit2.http.Body
 import retrofit2.http.DELETE
 import retrofit2.http.GET
+import retrofit2.http.PATCH
 import retrofit2.http.PUT
 import retrofit2.http.POST
 import retrofit2.http.Path
@@ -59,6 +61,13 @@ interface TaskApiService {
     suspend fun updateTaskStatus(
         @Path("id") id: String,
         @Body body: UpdateTaskStatusRequestDto
+    ): Response<TaskEnvelopeDto>
+
+    /** FR-25 (docs/Task_Reorder_ToDo.md mục 4.2) — kéo-thả sắp xếp lại thứ tự task. */
+    @PATCH("api/v1/tasks/{id}/reorder")
+    suspend fun reorderTask(
+        @Path("id") id: String,
+        @Body body: ReorderTaskRequestDto
     ): Response<TaskEnvelopeDto>
 
     @DELETE("api/v1/tasks/{id}")

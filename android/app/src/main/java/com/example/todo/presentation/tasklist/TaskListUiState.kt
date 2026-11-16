@@ -1,5 +1,7 @@
 package com.example.todo.presentation.tasklist
 
+import com.example.todo.domain.model.Category
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.TaskFilter
 import com.example.todo.presentation.common.UiError
 
@@ -22,7 +24,15 @@ data class TaskListUiState(
     // nhận do lag UI) — cùng pattern với isTogglePending ở TaskUiModel, nhưng dùng Set riêng vì
     // task đang chờ xóa sẽ bị loại khỏi `tasks` ngay khi thành công nên không cần field trên
     // TaskUiModel.
-    val pendingDeleteTaskIds: Set<String> = emptySet()
+    val pendingDeleteTaskIds: Set<String> = emptySet(),
+    // FR-26 (docs/Task_Reorder_ToDo.md mục 5.2) — cài đặt vị trí thêm task mới, đọc từ thiết bị
+    // (không đồng bộ server). `showInsertPositionDialog` điều khiển AlertDialog mở từ IconButton
+    // "⚙" trên TopAppBar.
+    val insertPositionPreference: InsertPosition = InsertPosition.TOP,
+    val showInsertPositionDialog: Boolean = false,
+    // docs/Task_Category_ToDo.md mục 5.4 — tải riêng, KHÔNG lồng vào từng TaskUiModel (tránh copy
+    // dữ liệu trùng lặp cho nhiều task cùng category) — tra bằng categoryId lúc render.
+    val categories: List<Category> = emptyList()
 )
 
 enum class EmptyStateType { NO_TASKS_AT_ALL, NO_TASKS_MATCH_FILTER }

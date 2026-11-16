@@ -4,8 +4,12 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.domain.model.TaskStatus
+import com.example.todo.domain.usecase.category.GetCategoriesUseCase
+import com.example.todo.domain.usecase.preferences.GetInsertPositionPreferenceUseCase
 import com.example.todo.domain.usecase.task.CreateTaskUseCase
 import com.example.todo.domain.usecase.task.GetTaskByIdUseCase
 import com.example.todo.domain.usecase.task.UpdateTaskUseCase
@@ -45,6 +49,8 @@ class TaskFormViewModelTest {
     private val getTaskByIdUseCase: GetTaskByIdUseCase = mockk()
     private val createTaskUseCase: CreateTaskUseCase = mockk()
     private val updateTaskUseCase: UpdateTaskUseCase = mockk()
+    private val getInsertPositionPreferenceUseCase: GetInsertPositionPreferenceUseCase = mockk()
+    private val getCategoriesUseCase: GetCategoriesUseCase = mockk()
 
     private val existingTask = Task(
         id = "task-1",
@@ -58,6 +64,10 @@ class TaskFormViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        // Mặc định TOP — khớp CreateTaskUseCase.invoke() default param, xem các test Create mode.
+        coEvery { getInsertPositionPreferenceUseCase() } returns InsertPosition.TOP
+        // init{} luôn gọi loadCategories() — mặc định rỗng cho mọi test không liên quan tới FR-23.
+        coEvery { getCategoriesUseCase() } returns ApiResult.Success(emptyList())
     }
 
     @After
@@ -66,7 +76,14 @@ class TaskFormViewModelTest {
     }
 
     private fun createViewModel(savedStateHandle: SavedStateHandle = SavedStateHandle()): TaskFormViewModel {
-        return TaskFormViewModel(savedStateHandle, getTaskByIdUseCase, createTaskUseCase, updateTaskUseCase)
+        return TaskFormViewModel(
+            savedStateHandle,
+            getTaskByIdUseCase,
+            createTaskUseCase,
+            updateTaskUseCase,
+            getInsertPositionPreferenceUseCase,
+            getCategoriesUseCase
+        )
     }
 
     // --- Create mode (taskId == null) ---
@@ -123,6 +140,42 @@ class TaskFormViewModelTest {
 
         coVerify(exactly = 1) { createTaskUseCase("Task moi", null) }
         pending.complete(ApiResult.Success(existingTask))
+    }
+
+    @Test
+    fun `Create mode onPriorityChange cap nhat state va onSubmit gui dung priority`() = runTest(testDispatcher) {
+        coEvery {
+            createTaskUseCase("Task moi", null, InsertPosition.TOP, null, null, TaskPriority.HIGH)
+        } returns ApiResult.Success(existingTask)
+
+        val viewModel = createViewModel()
+        viewModel.onTitleChange("Task moi")
+        viewModel.onPriorityChange(TaskPriority.HIGH)
+
+        assertEquals(TaskPriority.HIGH, viewModel.uiState.value.priority)
+
+        viewModel.onSubmit()
+
+        coVerify(exactly = 1) {
+            createTaskUseCase("Task moi", null, InsertPosition.TOP, null, null, TaskPriority.HIGH)
+        }
+    }
+
+    @Test
+    fun `Create mode onDueDateChange cap nhat state va onSubmit gui dung dueDate`() = runTest(testDispatcher) {
+        val dueDate = java.time.LocalDate.of(2026, 11, 20)
+        coEvery { createTaskUseCase("Task moi", null, InsertPosition.TOP, null, dueDate) } returns
+            ApiResult.Success(existingTask)
+
+        val viewModel = createViewModel()
+        viewModel.onTitleChange("Task moi")
+        viewModel.onDueDateChange(dueDate)
+
+        assertEquals(dueDate, viewModel.uiState.value.dueDate)
+
+        viewModel.onSubmit()
+
+        coVerify(exactly = 1) { createTaskUseCase("Task moi", null, InsertPosition.TOP, null, dueDate) }
     }
 
     // --- Edit mode (taskId != null) ---
@@ -201,6 +254,45 @@ class TaskFormViewModelTest {
         }
         coVerify(exactly = 1) { updateTaskUseCase("task-1", "Mua sữa tươi", "2 lít") }
         coVerify(exactly = 0) { createTaskUseCase(any(), any()) }
+    }
+
+    @Test
+    fun `Edit mode init co dueDate thi nap dung vao state, onSubmit gui dung dueDate moi`() = runTest(testDispatcher) {
+        val oldDueDate = java.time.LocalDate.of(2026, 11, 10)
+        val newDueDate = java.time.LocalDate.of(2026, 11, 25)
+        coEvery { getTaskByIdUseCase("task-1") } returns
+            ApiResult.Success(existingTask.copy(dueDate = oldDueDate))
+        coEvery { updateTaskUseCase("task-1", "Mua sữa", "2 lít", null, newDueDate) } returns
+            ApiResult.Success(existingTask.copy(dueDate = newDueDate))
+        val savedStateHandle = SavedStateHandle(mapOf(Routes.EDIT_TASK_ARG_TASK_ID to "task-1"))
+        val viewModel = createViewModel(savedStateHandle)
+
+        assertEquals(oldDueDate, viewModel.uiState.value.dueDate)
+
+        viewModel.onDueDateChange(newDueDate)
+        viewModel.onSubmit()
+
+        coVerify(exactly = 1) { updateTaskUseCase("task-1", "Mua sữa", "2 lít", null, newDueDate) }
+    }
+
+    @Test
+    fun `Edit mode init co priority thi nap dung vao state, onSubmit gui dung priority moi`() = runTest(testDispatcher) {
+        coEvery { getTaskByIdUseCase("task-1") } returns
+            ApiResult.Success(existingTask.copy(priority = TaskPriority.LOW))
+        coEvery {
+            updateTaskUseCase("task-1", "Mua sữa", "2 lít", null, null, TaskPriority.HIGH)
+        } returns ApiResult.Success(existingTask.copy(priority = TaskPriority.HIGH))
+        val savedStateHandle = SavedStateHandle(mapOf(Routes.EDIT_TASK_ARG_TASK_ID to "task-1"))
+        val viewModel = createViewModel(savedStateHandle)
+
+        assertEquals(TaskPriority.LOW, viewModel.uiState.value.priority)
+
+        viewModel.onPriorityChange(TaskPriority.HIGH)
+        viewModel.onSubmit()
+
+        coVerify(exactly = 1) {
+            updateTaskUseCase("task-1", "Mua sữa", "2 lít", null, null, TaskPriority.HIGH)
+        }
     }
 
     @Test

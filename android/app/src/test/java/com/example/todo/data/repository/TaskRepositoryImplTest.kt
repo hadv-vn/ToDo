@@ -56,7 +56,7 @@ class TaskRepositoryImplTest {
         coVerify(exactly = 1) {
             taskApiService.updateTaskDetails(
                 "task-1",
-                UpdateTaskDetailsRequestDto(title = "Mua sữa tươi", description = "2 lít")
+                UpdateTaskDetailsRequestDto(title = "Mua sữa tươi", description = "2 lít", categoryId = null, dueDate = null, priority = "medium")
             )
         }
     }
@@ -72,7 +72,7 @@ class TaskRepositoryImplTest {
         coVerify(exactly = 1) {
             taskApiService.updateTaskDetails(
                 "task-1",
-                UpdateTaskDetailsRequestDto(title = "Mua sữa tươi", description = null)
+                UpdateTaskDetailsRequestDto(title = "Mua sữa tươi", description = null, categoryId = null, dueDate = null, priority = "medium")
             )
         }
     }

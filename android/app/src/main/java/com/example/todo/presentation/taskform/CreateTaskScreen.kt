@@ -37,7 +37,8 @@ fun CreateTaskScreen(
     modifier: Modifier = Modifier,
     viewModel: TaskFormViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
-    onSubmitSuccess: () -> Unit = {}
+    onSubmitSuccess: () -> Unit = {},
+    onNavigateToCategoryList: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
 
@@ -82,6 +83,29 @@ fun CreateTaskScreen(
                 label = { Text("Mô tả (không bắt buộc)") },
                 enabled = !uiState.isSubmitting,
                 modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            PriorityChipRow(
+                selectedPriority = uiState.priority,
+                onPrioritySelected = viewModel::onPriorityChange,
+                enabled = !uiState.isSubmitting
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            CategoryChipRow(
+                categories = uiState.availableCategories,
+                selectedCategoryId = uiState.categoryId,
+                onCategorySelected = viewModel::onCategorySelected,
+                enabled = !uiState.isSubmitting,
+                onNavigateToCategoryList = onNavigateToCategoryList
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DueDateField(
+                dueDate = uiState.dueDate,
+                onDueDateChange = viewModel::onDueDateChange,
+                enabled = !uiState.isSubmitting
             )
             Spacer(modifier = Modifier.height(8.dp))
 

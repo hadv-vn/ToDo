@@ -13,6 +13,9 @@ data class TaskDto(
     val title: String,
     val description: String? = null,
     val status: String,
+    val priority: String = "medium",
+    val categoryId: String? = null,
+    val dueDate: String? = null,
     val createdAt: String,
     val updatedAt: String
 )

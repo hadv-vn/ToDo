@@ -2,9 +2,12 @@ package com.example.todo.data.mapper
 
 import com.example.todo.data.remote.dto.task.CreateTaskRequestDto
 import com.example.todo.data.remote.dto.task.TaskDto
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.domain.model.TaskStatus
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * TaskDto <-> Task — theo LLD mục 3.5/4.3. Parse `status` string -> enum, parse chuỗi ISO-8601 ->
@@ -17,7 +20,10 @@ fun TaskDto.toDomain(): Task = Task(
     description = description,
     status = status.toDomainTaskStatus(),
     createdAt = Instant.parse(createdAt),
-    updatedAt = Instant.parse(updatedAt)
+    updatedAt = Instant.parse(updatedAt),
+    categoryId = categoryId,
+    dueDate = dueDate?.let { LocalDate.parse(it) },
+    priority = priority.toDomainTaskPriority()
 )
 
 /**
@@ -25,7 +31,14 @@ fun TaskDto.toDomain(): Task = Task(
  * resend một Task Domain đã có sẵn (ví dụ retry); luồng Create chính (TaskFormViewModel) gọi
  * CreateTaskUseCase(title, description) trực tiếp từ input người dùng, không qua hàm này.
  */
-fun Task.toCreateRequestDto(): CreateTaskRequestDto = CreateTaskRequestDto(title = title, description = description)
+fun Task.toCreateRequestDto(): CreateTaskRequestDto =
+    CreateTaskRequestDto(title = title, description = description, priority = priority.toWireValue())
+
+private fun String.toDomainTaskPriority(): TaskPriority = when (this) {
+    "low" -> TaskPriority.LOW
+    "high" -> TaskPriority.HIGH
+    else -> TaskPriority.MEDIUM // "medium" hoặc giá trị lạ -> coi như MEDIUM (defensive)
+}
 
 private fun String.toDomainTaskStatus(): TaskStatus = when (this) {
     "done" -> TaskStatus.DONE
@@ -35,4 +48,15 @@ private fun String.toDomainTaskStatus(): TaskStatus = when (this) {
 fun TaskStatus.toWireValue(): String = when (this) {
     TaskStatus.OPEN -> "open"
     TaskStatus.DONE -> "done"
+}
+
+fun InsertPosition.toWireValue(): String = when (this) {
+    InsertPosition.TOP -> "top"
+    InsertPosition.BOTTOM -> "bottom"
+}
+
+fun TaskPriority.toWireValue(): String = when (this) {
+    TaskPriority.LOW -> "low"
+    TaskPriority.MEDIUM -> "medium"
+    TaskPriority.HIGH -> "high"
 }

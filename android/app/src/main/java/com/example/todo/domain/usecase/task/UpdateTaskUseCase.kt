@@ -3,7 +3,9 @@ package com.example.todo.domain.usecase.task
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
 import com.example.todo.domain.model.Task
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.domain.repository.TaskRepository
+import java.time.LocalDate
 import javax.inject.Inject
 
 /**
@@ -14,10 +16,24 @@ import javax.inject.Inject
 class UpdateTaskUseCase @Inject constructor(
     private val taskRepository: TaskRepository
 ) {
-    suspend operator fun invoke(id: String, title: String, description: String?): ApiResult<Task> {
+    suspend operator fun invoke(
+        id: String,
+        title: String,
+        description: String?,
+        categoryId: String? = null,
+        dueDate: LocalDate? = null,
+        priority: TaskPriority = TaskPriority.MEDIUM
+    ): ApiResult<Task> {
         if (title.trim().isEmpty()) {
             return ApiResult.Error(ApiErrorCode.BAD_REQUEST, "Tiêu đề không được để trống")
         }
-        return taskRepository.editTask(id, title.trim(), description?.takeIf { it.isNotBlank() })
+        return taskRepository.editTask(
+            id,
+            title.trim(),
+            description?.takeIf { it.isNotBlank() },
+            categoryId,
+            dueDate,
+            priority
+        )
     }
 }

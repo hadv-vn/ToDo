@@ -14,9 +14,13 @@ object Routes {
     const val TASK_LIST = "task_list"
     const val CREATE_TASK = "create_task"
     const val EDIT_TASK = "edit_task/{taskId}"
+    const val CATEGORY_LIST = "category_list"
+    const val CREATE_CATEGORY = "create_category"
+    const val EDIT_CATEGORY = "edit_category/{categoryId}"
 
     const val RESET_PASSWORD_ARG_EMAIL = "email"
     const val EDIT_TASK_ARG_TASK_ID = "taskId"
+    const val EDIT_CATEGORY_ARG_CATEGORY_ID = "categoryId"
 
     // Key của SavedStateHandle trên NavBackStackEntry của TASK_LIST — set = true bởi
     // CreateTask/EditTask (trên `previousBackStackEntry`) ngay trước khi popBackStack() sau khi
@@ -26,4 +30,5 @@ object Routes {
 
     fun resetPassword(email: String): String = "reset_password/$email"
     fun editTask(taskId: String): String = "edit_task/$taskId"
+    fun editCategory(categoryId: String): String = "edit_category/$categoryId"
 }

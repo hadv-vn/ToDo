@@ -1,6 +1,9 @@
 package com.example.todo.presentation.taskform
 
+import com.example.todo.domain.model.Category
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.presentation.common.UiError
+import java.time.LocalDate
 
 /**
  * Theo LLD mục 4.2 (struct nguyên văn) + mục 5 (bổ sung `isLoading` — pseudocode "Luồng tải dữ
@@ -19,5 +22,12 @@ data class TaskFormUiState(
     val isSubmitting: Boolean = false,
     val submitError: UiError? = null,
     val taskDeletedRemotely: Boolean = false,
-    val isSubmitSuccess: Boolean = false
+    val isSubmitSuccess: Boolean = false,
+    // FR-23 (docs/Task_Category_ToDo.md) — `null` = "Không danh mục" (mặc định).
+    val categoryId: String? = null,
+    val availableCategories: List<Category> = emptyList(),
+    // FR-20 (docs/Task_DueDate_ToDo.md) — `null` = "Chưa đặt hạn" (mặc định).
+    val dueDate: LocalDate? = null,
+    // FR-18 (docs/Task_Priority_ToDo.md) — mặc định Trung bình.
+    val priority: TaskPriority = TaskPriority.MEDIUM
 )

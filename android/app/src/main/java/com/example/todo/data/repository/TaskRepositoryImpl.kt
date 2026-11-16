@@ -4,13 +4,17 @@ import com.example.todo.data.mapper.toDomain
 import com.example.todo.data.mapper.toWireValue
 import com.example.todo.data.remote.api.TaskApiService
 import com.example.todo.data.remote.dto.task.CreateTaskRequestDto
+import com.example.todo.data.remote.dto.task.ReorderTaskRequestDto
 import com.example.todo.data.remote.dto.task.UpdateTaskDetailsRequestDto
 import com.example.todo.data.remote.dto.task.UpdateTaskStatusRequestDto
 import com.example.todo.data.remote.safeApiCall
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.domain.model.TaskStatus
 import com.example.todo.domain.repository.TaskRepository
+import java.time.LocalDate
 import javax.inject.Inject
 
 /**
@@ -34,21 +38,59 @@ class TaskRepositoryImpl @Inject constructor(
         return safeApiCall { taskApiService.getTaskById(id) }.mapSuccess { it.data.toDomain() }
     }
 
-    override suspend fun createTask(title: String, description: String?): ApiResult<Task> {
+    override suspend fun createTask(
+        title: String,
+        description: String?,
+        insertPosition: InsertPosition,
+        categoryId: String?,
+        dueDate: LocalDate?,
+        priority: TaskPriority
+    ): ApiResult<Task> {
         return safeApiCall {
-            taskApiService.createTask(CreateTaskRequestDto(title = title, description = description))
+            taskApiService.createTask(
+                CreateTaskRequestDto(
+                    title = title,
+                    description = description,
+                    insertPosition = insertPosition.toWireValue(),
+                    categoryId = categoryId,
+                    dueDate = dueDate?.toString(),
+                    priority = priority.toWireValue()
+                )
+            )
         }.mapSuccess { it.data.toDomain() }
     }
 
-    override suspend fun editTask(id: String, title: String, description: String?): ApiResult<Task> {
+    override suspend fun editTask(
+        id: String,
+        title: String,
+        description: String?,
+        categoryId: String?,
+        dueDate: LocalDate?,
+        priority: TaskPriority
+    ): ApiResult<Task> {
         return safeApiCall {
-            taskApiService.updateTaskDetails(id, UpdateTaskDetailsRequestDto(title = title, description = description))
+            taskApiService.updateTaskDetails(
+                id,
+                UpdateTaskDetailsRequestDto(
+                    title = title,
+                    description = description,
+                    categoryId = categoryId,
+                    dueDate = dueDate?.toString(),
+                    priority = priority.toWireValue()
+                )
+            )
         }.mapSuccess { it.data.toDomain() }
     }
 
     override suspend fun toggleTaskStatus(id: String, newStatus: TaskStatus): ApiResult<Task> {
         return safeApiCall {
             taskApiService.updateTaskStatus(id, UpdateTaskStatusRequestDto(status = newStatus.toWireValue()))
+        }.mapSuccess { it.data.toDomain() }
+    }
+
+    override suspend fun reorderTask(id: String, afterTaskId: String?, beforeTaskId: String?): ApiResult<Task> {
+        return safeApiCall {
+            taskApiService.reorderTask(id, ReorderTaskRequestDto(afterTaskId = afterTaskId, beforeTaskId = beforeTaskId))
         }.mapSuccess { it.data.toDomain() }
     }
 

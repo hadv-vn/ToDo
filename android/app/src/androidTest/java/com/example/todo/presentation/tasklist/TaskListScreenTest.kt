@@ -14,13 +14,21 @@ import androidx.compose.ui.test.performTouchInput
 import androidx.compose.ui.test.swipeLeft
 import com.example.todo.domain.common.ApiResult
 import com.example.todo.domain.model.AuthSession
+import com.example.todo.domain.model.Category
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
 import com.example.todo.domain.model.TaskStatus
 import com.example.todo.domain.repository.AuthRepository
+import com.example.todo.domain.repository.CategoryRepository
+import com.example.todo.domain.repository.PreferencesRepository
 import com.example.todo.domain.repository.TaskRepository
 import com.example.todo.domain.usecase.auth.LogoutUseCase
+import com.example.todo.domain.usecase.category.GetCategoriesUseCase
+import com.example.todo.domain.usecase.preferences.GetInsertPositionPreferenceUseCase
+import com.example.todo.domain.usecase.preferences.SetInsertPositionPreferenceUseCase
 import com.example.todo.domain.usecase.task.DeleteTaskUseCase
 import com.example.todo.domain.usecase.task.GetTasksUseCase
+import com.example.todo.domain.usecase.task.ReorderTaskUseCase
 import com.example.todo.domain.usecase.task.ToggleTaskStatusUseCase
 import org.junit.Rule
 import org.junit.Test
@@ -63,12 +71,28 @@ class TaskListScreenTest {
     private class FakeTaskRepositoryWithFixedList(private val tasks: List<Task>) : TaskRepository {
         override suspend fun getTasks(filter: TaskStatus?): ApiResult<List<Task>> = ApiResult.Success(tasks)
         override suspend fun getTaskById(id: String) = throw NotImplementedError()
-        override suspend fun createTask(title: String, description: String?) = throw NotImplementedError()
-        override suspend fun editTask(id: String, title: String, description: String?) = throw NotImplementedError()
+        override suspend fun createTask(
+            title: String,
+            description: String?,
+            insertPosition: InsertPosition,
+            categoryId: String?,
+            dueDate: java.time.LocalDate?,
+            priority: com.example.todo.domain.model.TaskPriority
+        ) = throw NotImplementedError()
+        override suspend fun editTask(
+            id: String,
+            title: String,
+            description: String?,
+            categoryId: String?,
+            dueDate: java.time.LocalDate?,
+            priority: com.example.todo.domain.model.TaskPriority
+        ) = throw NotImplementedError()
         override suspend fun toggleTaskStatus(id: String, newStatus: TaskStatus): ApiResult<Task> {
             val task = tasks.first { it.id == id }
             return ApiResult.Success(task.copy(status = newStatus))
         }
+        override suspend fun reorderTask(id: String, afterTaskId: String?, beforeTaskId: String?) =
+            throw NotImplementedError()
         override suspend fun deleteTask(id: String): ApiResult<Unit> = ApiResult.Success(Unit)
     }
 
@@ -82,13 +106,42 @@ class TaskListScreenTest {
             return ApiResult.Success(filtered)
         }
         override suspend fun getTaskById(id: String) = throw NotImplementedError()
-        override suspend fun createTask(title: String, description: String?) = throw NotImplementedError()
-        override suspend fun editTask(id: String, title: String, description: String?) = throw NotImplementedError()
+        override suspend fun createTask(
+            title: String,
+            description: String?,
+            insertPosition: InsertPosition,
+            categoryId: String?,
+            dueDate: java.time.LocalDate?,
+            priority: com.example.todo.domain.model.TaskPriority
+        ) = throw NotImplementedError()
+        override suspend fun editTask(
+            id: String,
+            title: String,
+            description: String?,
+            categoryId: String?,
+            dueDate: java.time.LocalDate?,
+            priority: com.example.todo.domain.model.TaskPriority
+        ) = throw NotImplementedError()
         override suspend fun toggleTaskStatus(id: String, newStatus: TaskStatus): ApiResult<Task> {
             val task = allTasks.first { it.id == id }
             return ApiResult.Success(task.copy(status = newStatus))
         }
+        override suspend fun reorderTask(id: String, afterTaskId: String?, beforeTaskId: String?) =
+            throw NotImplementedError()
         override suspend fun deleteTask(id: String): ApiResult<Unit> = deleteResult
+    }
+
+    private class FakePreferencesRepository : PreferencesRepository {
+        override suspend fun getInsertPosition(): InsertPosition = InsertPosition.TOP
+        override suspend fun setInsertPosition(position: InsertPosition) = Unit
+    }
+
+    private class FakeCategoryRepository : CategoryRepository {
+        override suspend fun getCategories(): ApiResult<List<Category>> = ApiResult.Success(emptyList())
+        override suspend fun createCategory(name: String, color: String?, icon: String?) = throw NotImplementedError()
+        override suspend fun updateCategory(id: String, name: String, color: String, icon: String) =
+            throw NotImplementedError()
+        override suspend fun deleteCategory(id: String) = throw NotImplementedError()
     }
 
     private class FakeAuthRepositoryLogoutOnly : AuthRepository {
@@ -105,10 +158,15 @@ class TaskListScreenTest {
         createListViewModel(FakeTaskRepositoryWithFixedList(tasks))
 
     private fun createListViewModel(taskRepository: TaskRepository): TaskListViewModel {
+        val preferencesRepository = FakePreferencesRepository()
         return TaskListViewModel(
             getTasksUseCase = GetTasksUseCase(taskRepository),
             toggleTaskStatusUseCase = ToggleTaskStatusUseCase(taskRepository),
             deleteTaskUseCase = DeleteTaskUseCase(taskRepository),
+            reorderTaskUseCase = ReorderTaskUseCase(taskRepository),
+            getInsertPositionPreferenceUseCase = GetInsertPositionPreferenceUseCase(preferencesRepository),
+            setInsertPositionPreferenceUseCase = SetInsertPositionPreferenceUseCase(preferencesRepository),
+            getCategoriesUseCase = GetCategoriesUseCase(FakeCategoryRepository()),
             logoutUseCase = LogoutUseCase(FakeAuthRepositoryLogoutOnly())
         )
     }

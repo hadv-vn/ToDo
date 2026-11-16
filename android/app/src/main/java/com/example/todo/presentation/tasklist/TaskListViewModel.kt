@@ -4,12 +4,17 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
 import com.example.todo.domain.model.TaskFilter
 import com.example.todo.domain.model.TaskStatus
 import com.example.todo.domain.usecase.auth.LogoutUseCase
+import com.example.todo.domain.usecase.category.GetCategoriesUseCase
+import com.example.todo.domain.usecase.preferences.GetInsertPositionPreferenceUseCase
+import com.example.todo.domain.usecase.preferences.SetInsertPositionPreferenceUseCase
 import com.example.todo.domain.usecase.task.DeleteTaskUseCase
 import com.example.todo.domain.usecase.task.GetTasksUseCase
+import com.example.todo.domain.usecase.task.ReorderTaskUseCase
 import com.example.todo.domain.usecase.task.ToggleTaskStatusUseCase
 import com.example.todo.presentation.common.UiError
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -18,6 +23,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 /**
@@ -36,6 +42,10 @@ class TaskListViewModel @Inject constructor(
     private val getTasksUseCase: GetTasksUseCase,
     private val toggleTaskStatusUseCase: ToggleTaskStatusUseCase,
     private val deleteTaskUseCase: DeleteTaskUseCase,
+    private val reorderTaskUseCase: ReorderTaskUseCase,
+    private val getInsertPositionPreferenceUseCase: GetInsertPositionPreferenceUseCase,
+    private val setInsertPositionPreferenceUseCase: SetInsertPositionPreferenceUseCase,
+    private val getCategoriesUseCase: GetCategoriesUseCase,
     private val logoutUseCase: LogoutUseCase
 ) : ViewModel() {
 
@@ -44,10 +54,45 @@ class TaskListViewModel @Inject constructor(
 
     init {
         loadTasks()
+        loadCategories()
+        viewModelScope.launch {
+            _uiState.update { it.copy(insertPositionPreference = getInsertPositionPreferenceUseCase()) }
+        }
+    }
+
+    /**
+     * docs/Task_Category_ToDo.md mục 5.4 — tải riêng khỏi `loadTasks()` (Task response chỉ có
+     * `categoryId`, không nhúng category). Gọi lại ở mọi điểm `loadTasks()` đã gọi (pull-to-refresh,
+     * thử lại, refreshNeeded) để danh mục mới tạo ở CategoryListScreen hiện ra kịp — xem [loadTasks].
+     * Lỗi tải category KHÔNG set [TaskListUiState.error] (không phải lỗi chính của màn hình danh
+     * sách task) — im lặng giữ `categories` rỗng/cũ, task vẫn hiển thị bình thường (chỉ thiếu badge).
+     */
+    private fun loadCategories() {
+        viewModelScope.launch {
+            val result = getCategoriesUseCase()
+            if (result is ApiResult.Success) {
+                _uiState.update { it.copy(categories = result.data) }
+            }
+        }
+    }
+
+    /** FR-26 — mở/đóng AlertDialog chọn vị trí thêm task mới (IconButton "⚙" trên TopAppBar). */
+    fun onInsertPositionSettingsClicked() {
+        _uiState.update { it.copy(showInsertPositionDialog = true) }
+    }
+
+    fun onInsertPositionDialogDismissed() {
+        _uiState.update { it.copy(showInsertPositionDialog = false) }
+    }
+
+    fun onInsertPositionSelected(position: InsertPosition) {
+        _uiState.update { it.copy(insertPositionPreference = position, showInsertPositionDialog = false) }
+        viewModelScope.launch { setInsertPositionPreferenceUseCase(position) }
     }
 
     fun loadTasks(showLoading: Boolean = true) {
         if (_uiState.value.isLoading) return // tránh chồng nhiều request load cùng lúc
+        loadCategories() // xem ghi chú ở loadCategories() — danh mục mới tạo cần hiện kịp
         val filter = _uiState.value.filter
         if (showLoading) {
             _uiState.update { it.copy(isLoading = true, error = null) }
@@ -114,6 +159,7 @@ class TaskListViewModel @Inject constructor(
      */
     fun onPullToRefresh() {
         if (_uiState.value.isRefreshing) return
+        loadCategories()
         val currentFilter = _uiState.value.filter
         _uiState.update { it.copy(isRefreshing = true) }
         viewModelScope.launch {
@@ -292,6 +338,69 @@ class TaskListViewModel @Inject constructor(
         }
     }
 
+    /**
+     * FR-25 (docs/Task_Reorder_ToDo.md mục 5.3) — 3 bước của 1 lần kéo-thả, tách riêng vì lý do
+     * quan trọng: [onTaskDragStepped] chạy NHIỀU LẦN liên tục trong lúc kéo (mỗi lần item đi qua 1
+     * hàng xóm) và CHỈ đổi state cục bộ — không gọi server mỗi bước (sẽ spam request). Chỉ
+     * [onTaskDragEnded] (gọi 1 LẦN DUY NHẤT khi thả tay) mới gọi [reorderTaskUseCase].
+     */
+
+    /** Lưu snapshot thứ tự TRƯỚC khi kéo — dùng để rollback nếu [onTaskDragEnded] lỗi. */
+    private var taskOrderBeforeDrag: List<TaskUiModel>? = null
+
+    fun onTaskDragStarted() {
+        taskOrderBeforeDrag = _uiState.value.tasks
+    }
+
+    /** Di chuyển cục bộ item ở [fromIndex] tới [toIndex] — KHÔNG gọi server (xem ghi chú ở trên). */
+    fun onTaskDragStepped(fromIndex: Int, toIndex: Int) {
+        val tasks = _uiState.value.tasks
+        if (fromIndex == toIndex || fromIndex !in tasks.indices || toIndex !in tasks.indices) return
+        val reordered = tasks.toMutableList().apply { add(toIndex, removeAt(fromIndex)) }
+        _uiState.update { it.copy(tasks = reordered) }
+    }
+
+    /**
+     * Thả tay — [taskId] đã ở đúng vị trí cuối cùng trong `tasks` (do các lần [onTaskDragStepped]
+     * trước đó). Tính 2 hàng xóm hiện tại rồi gọi server; lỗi -> rollback về
+     * [taskOrderBeforeDrag] (thứ tự lúc BẮT ĐẦU kéo, không phải thứ tự ngay trước bước lỗi) +
+     * Snackbar, cùng khuôn rollback đã có ở [onToggleTask].
+     */
+    fun onTaskDragEnded(taskId: String) {
+        val orderBeforeDrag = taskOrderBeforeDrag
+        taskOrderBeforeDrag = null
+        val tasks = _uiState.value.tasks
+        val index = tasks.indexOfFirst { it.id == taskId }
+        if (index == -1 || orderBeforeDrag == null) return
+        if (tasks.map { it.id } == orderBeforeDrag.map { it.id }) return // không đổi vị trí -> không gọi server
+
+        val afterTaskId = tasks.getOrNull(index - 1)?.id
+        val beforeTaskId = tasks.getOrNull(index + 1)?.id
+
+        viewModelScope.launch {
+            val result = reorderTaskUseCase(taskId, afterTaskId, beforeTaskId)
+            when (result) {
+                is ApiResult.Success -> Unit // đã áp dụng optimistic qua onTaskDragStepped, không cần làm gì thêm
+                is ApiResult.Error -> {
+                    _uiState.update {
+                        it.copy(
+                            tasks = orderBeforeDrag,
+                            error = UiError(result.message ?: "Có lỗi xảy ra, vui lòng thử lại")
+                        )
+                    }
+                }
+                is ApiResult.NetworkError -> {
+                    _uiState.update {
+                        it.copy(
+                            tasks = orderBeforeDrag,
+                            error = UiError("Không có kết nối mạng, vui lòng thử lại", isNetworkError = true)
+                        )
+                    }
+                }
+            }
+        }
+    }
+
     /** UI (Snackbar) gọi sau khi đã hiển thị [TaskListUiState.error] để tránh hiện lại. */
     fun onErrorConsumed() {
         _uiState.update { it.copy(error = null) }
@@ -386,6 +495,10 @@ private fun Task.toUiModel(isTogglePending: Boolean): TaskUiModel {
         title = title,
         descriptionPreview = preview,
         status = status,
-        isTogglePending = isTogglePending
+        isTogglePending = isTogglePending,
+        categoryId = categoryId,
+        dueDate = dueDate,
+        isOverdue = dueDate != null && status == TaskStatus.OPEN && dueDate.isBefore(LocalDate.now()),
+        priority = priority
     )
 }

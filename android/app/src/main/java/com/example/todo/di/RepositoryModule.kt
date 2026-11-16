@@ -1,8 +1,12 @@
 package com.example.todo.di
 
 import com.example.todo.data.repository.AuthRepositoryImpl
+import com.example.todo.data.repository.CategoryRepositoryImpl
+import com.example.todo.data.repository.PreferencesRepositoryImpl
 import com.example.todo.data.repository.TaskRepositoryImpl
 import com.example.todo.domain.repository.AuthRepository
+import com.example.todo.domain.repository.CategoryRepository
+import com.example.todo.domain.repository.PreferencesRepository
 import com.example.todo.domain.repository.TaskRepository
 import dagger.Binds
 import dagger.Module
@@ -25,4 +29,12 @@ abstract class RepositoryModule {
     @Binds
     @Singleton
     abstract fun bindTaskRepository(impl: TaskRepositoryImpl): TaskRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindPreferencesRepository(impl: PreferencesRepositoryImpl): PreferencesRepository
+
+    @Binds
+    @Singleton
+    abstract fun bindCategoryRepository(impl: CategoryRepositoryImpl): CategoryRepository
 }

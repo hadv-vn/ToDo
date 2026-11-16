@@ -3,12 +3,17 @@ package com.example.todo.presentation.tasklist
 import app.cash.turbine.test
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
 import com.example.todo.domain.model.TaskFilter
 import com.example.todo.domain.model.TaskStatus
 import com.example.todo.domain.usecase.auth.LogoutUseCase
+import com.example.todo.domain.usecase.category.GetCategoriesUseCase
+import com.example.todo.domain.usecase.preferences.GetInsertPositionPreferenceUseCase
+import com.example.todo.domain.usecase.preferences.SetInsertPositionPreferenceUseCase
 import com.example.todo.domain.usecase.task.DeleteTaskUseCase
 import com.example.todo.domain.usecase.task.GetTasksUseCase
+import com.example.todo.domain.usecase.task.ReorderTaskUseCase
 import com.example.todo.domain.usecase.task.ToggleTaskStatusUseCase
 import io.mockk.coEvery
 import io.mockk.coVerify
@@ -44,6 +49,10 @@ class TaskListViewModelTest {
     private val getTasksUseCase: GetTasksUseCase = mockk()
     private val toggleTaskStatusUseCase: ToggleTaskStatusUseCase = mockk()
     private val deleteTaskUseCase: DeleteTaskUseCase = mockk()
+    private val reorderTaskUseCase: ReorderTaskUseCase = mockk()
+    private val getInsertPositionPreferenceUseCase: GetInsertPositionPreferenceUseCase = mockk()
+    private val setInsertPositionPreferenceUseCase: SetInsertPositionPreferenceUseCase = mockk()
+    private val getCategoriesUseCase: GetCategoriesUseCase = mockk()
     private val logoutUseCase: LogoutUseCase = mockk()
 
     private val taskOpen = Task(
@@ -66,6 +75,12 @@ class TaskListViewModelTest {
     @Before
     fun setUp() {
         Dispatchers.setMain(testDispatcher)
+        // init{} của TaskListViewModel luôn gọi use case này — mặc định TOP cho mọi test không
+        // liên quan tới FR-26, tránh MockKException "no answer found".
+        coEvery { getInsertPositionPreferenceUseCase() } returns InsertPosition.TOP
+        // loadTasks()/onPullToRefresh()/init{} đều gọi loadCategories() — mặc định rỗng cho mọi
+        // test không liên quan tới FR-24.
+        coEvery { getCategoriesUseCase() } returns ApiResult.Success(emptyList())
     }
 
     @After
@@ -74,7 +89,16 @@ class TaskListViewModelTest {
     }
 
     private fun createViewModel(): TaskListViewModel {
-        return TaskListViewModel(getTasksUseCase, toggleTaskStatusUseCase, deleteTaskUseCase, logoutUseCase)
+        return TaskListViewModel(
+            getTasksUseCase,
+            toggleTaskStatusUseCase,
+            deleteTaskUseCase,
+            reorderTaskUseCase,
+            getInsertPositionPreferenceUseCase,
+            setInsertPositionPreferenceUseCase,
+            getCategoriesUseCase,
+            logoutUseCase
+        )
     }
 
     @Test
@@ -506,5 +530,173 @@ class TaskListViewModelTest {
             assertEquals(TaskStatus.OPEN, afterForbidden.tasks.first().status) // rollback
             assertEquals("Bạn không có quyền thực hiện thao tác này", afterForbidden.error?.message)
         }
+    }
+
+    // --- kéo-thả (FR-25, docs/Task_Reorder_ToDo.md): onTaskDragStarted/Stepped/Ended ---
+
+    @Test
+    fun `onTaskDragStepped doi vi tri cuc bo ngay, KHONG goi ReorderTaskUseCase`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+
+        val viewModel = createViewModel()
+        viewModel.onTaskDragStarted()
+        // ban đầu: [task-1, task-2] -> kéo task-2 (index 1) lên đầu (index 0)
+        viewModel.onTaskDragStepped(fromIndex = 1, toIndex = 0)
+
+        assertEquals(listOf("task-2", "task-1"), viewModel.uiState.value.tasks.map { it.id })
+        coVerify(exactly = 0) { reorderTaskUseCase(any(), any(), any()) }
+    }
+
+    @Test
+    fun `onTaskDragEnded goi ReorderTaskUseCase 1 lan voi dung hang xom cuoi cung`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+        val pending = CompletableDeferred<ApiResult<Task>>()
+        coEvery { reorderTaskUseCase(any(), any(), any()) } coAnswers { pending.await() }
+
+        val viewModel = createViewModel()
+        viewModel.onTaskDragStarted()
+        viewModel.onTaskDragStepped(fromIndex = 1, toIndex = 0) // kéo qua nhiều bước (ở đây 1 bước)
+        viewModel.onTaskDragEnded("task-2")
+
+        coVerify(exactly = 1) { reorderTaskUseCase("task-2", null, "task-1") }
+        pending.complete(ApiResult.Success(taskDone))
+    }
+
+    @Test
+    fun `onTaskDragEnded loi thi rollback ve thu tu LUC BAT DAU keo va bao loi`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+        coEvery { reorderTaskUseCase(any(), any(), any()) } returns
+            ApiResult.Error(ApiErrorCode.NOT_FOUND, "Task không tồn tại")
+
+        val viewModel = createViewModel()
+
+        viewModel.uiState.test {
+            awaitItem() // sau init load thành công
+
+            viewModel.onTaskDragStarted()
+            viewModel.onTaskDragStepped(fromIndex = 1, toIndex = 0)
+            val optimistic = awaitItem()
+            assertEquals(listOf("task-2", "task-1"), optimistic.tasks.map { it.id })
+
+            viewModel.onTaskDragEnded("task-2")
+            val afterError = awaitItem()
+            assertEquals(listOf("task-1", "task-2"), afterError.tasks.map { it.id }) // rollback
+            assertEquals("Task không tồn tại", afterError.error?.message)
+        }
+    }
+
+    @Test
+    fun `onTaskDragEnded khong doi vi tri thi khong goi server`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+
+        val viewModel = createViewModel()
+        viewModel.onTaskDragStarted() // long-press nhưng không kéo đi đâu cả
+        viewModel.onTaskDragEnded("task-1")
+
+        coVerify(exactly = 0) { reorderTaskUseCase(any(), any(), any()) }
+    }
+
+    @Test
+    fun `onTaskDragStepped voi fromIndex bang toIndex thi khong lam gi`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen, taskDone))
+
+        val viewModel = createViewModel()
+        viewModel.onTaskDragStarted()
+        viewModel.onTaskDragStepped(fromIndex = 0, toIndex = 0)
+
+        assertEquals(listOf("task-1", "task-2"), viewModel.uiState.value.tasks.map { it.id })
+    }
+
+    // --- FR-26 — cài đặt vị trí thêm task mới ---
+
+    @Test
+    fun `init tai dung insertPositionPreference tu use case`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(emptyList())
+        coEvery { getInsertPositionPreferenceUseCase() } returns InsertPosition.BOTTOM
+
+        val viewModel = createViewModel()
+
+        assertEquals(InsertPosition.BOTTOM, viewModel.uiState.value.insertPositionPreference)
+    }
+
+    @Test
+    fun `onInsertPositionSelected cap nhat state ngay va luu qua use case`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(emptyList())
+        coEvery { setInsertPositionPreferenceUseCase(InsertPosition.BOTTOM) } returns Unit
+
+        val viewModel = createViewModel()
+        viewModel.onInsertPositionSettingsClicked()
+        assertTrue(viewModel.uiState.value.showInsertPositionDialog)
+
+        viewModel.onInsertPositionSelected(InsertPosition.BOTTOM)
+
+        assertEquals(InsertPosition.BOTTOM, viewModel.uiState.value.insertPositionPreference)
+        assertFalse(viewModel.uiState.value.showInsertPositionDialog)
+        coVerify(exactly = 1) { setInsertPositionPreferenceUseCase(InsertPosition.BOTTOM) }
+    }
+
+    // --- isOverdue (FR-21, docs/Task_DueDate_ToDo.md) ---
+
+    @Test
+    fun `task OPEN qua han thi isOverdue true`() = runTest(testDispatcher) {
+        val pastDueDate = java.time.LocalDate.now().minusDays(1)
+        coEvery { getTasksUseCase(any()) } returns
+            ApiResult.Success(listOf(taskOpen.copy(dueDate = pastDueDate)))
+
+        val viewModel = createViewModel()
+
+        assertTrue(viewModel.uiState.value.tasks.first().isOverdue)
+    }
+
+    @Test
+    fun `task DONE qua han thi isOverdue false (da xong khong con la van de qua han)`() = runTest(testDispatcher) {
+        val pastDueDate = java.time.LocalDate.now().minusDays(1)
+        coEvery { getTasksUseCase(any()) } returns
+            ApiResult.Success(listOf(taskDone.copy(dueDate = pastDueDate)))
+
+        val viewModel = createViewModel()
+
+        assertFalse(viewModel.uiState.value.tasks.first().isOverdue)
+    }
+
+    @Test
+    fun `task OPEN chua toi han thi isOverdue false`() = runTest(testDispatcher) {
+        val futureDueDate = java.time.LocalDate.now().plusDays(1)
+        coEvery { getTasksUseCase(any()) } returns
+            ApiResult.Success(listOf(taskOpen.copy(dueDate = futureDueDate)))
+
+        val viewModel = createViewModel()
+
+        assertFalse(viewModel.uiState.value.tasks.first().isOverdue)
+    }
+
+    @Test
+    fun `task khong co dueDate thi isOverdue false`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+
+        val viewModel = createViewModel()
+
+        assertFalse(viewModel.uiState.value.tasks.first().isOverdue)
+    }
+
+    // --- priority (FR-19, docs/Task_Priority_ToDo.md) ---
+
+    @Test
+    fun `mapper gan dung priority vao TaskUiModel`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns
+            ApiResult.Success(listOf(taskOpen.copy(priority = com.example.todo.domain.model.TaskPriority.HIGH)))
+
+        val viewModel = createViewModel()
+
+        assertEquals(com.example.todo.domain.model.TaskPriority.HIGH, viewModel.uiState.value.tasks.first().priority)
+    }
+
+    @Test
+    fun `task khong chi dinh priority thi mac dinh MEDIUM`() = runTest(testDispatcher) {
+        coEvery { getTasksUseCase(any()) } returns ApiResult.Success(listOf(taskOpen))
+
+        val viewModel = createViewModel()
+
+        assertEquals(com.example.todo.domain.model.TaskPriority.MEDIUM, viewModel.uiState.value.tasks.first().priority)
     }
 }

@@ -18,9 +18,16 @@ import kotlinx.serialization.Serializable
  * tạo, nên kotlinx.serialization LUÔN serialize cả 2 field bất kể giá trị gì (kể cả `null`),
  * không phụ thuộc `encodeDefaults`. `editTask` luôn có `title` thật (không bao giờ null) và
  * `description` có thể là chuỗi thật hoặc `null` (xóa mô tả) — cả 2 trường hợp đều được gửi đúng.
+ * `categoryId`/`dueDate` cùng lý do — `null` tường minh = bỏ danh mục/xóa hạn
+ * (docs/Task_Category_ToDo.md mục 5.2, docs/Task_DueDate_ToDo.md mục 5.2). `priority` luôn có
+ * giá trị thật (không bao giờ null, xem docs/Task_Priority_ToDo.md mục 5.2) nhưng vẫn không đặt
+ * default để nhất quán — tất cả field trong DTO này đều serialize tường minh.
  */
 @Serializable
 data class UpdateTaskDetailsRequestDto(
     val title: String,
-    val description: String?
+    val description: String?,
+    val categoryId: String?,
+    val dueDate: String?,
+    val priority: String
 )

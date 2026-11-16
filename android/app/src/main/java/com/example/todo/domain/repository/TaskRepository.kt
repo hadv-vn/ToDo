@@ -1,8 +1,11 @@
 package com.example.todo.domain.repository
 
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.domain.model.TaskStatus
+import java.time.LocalDate
 
 /**
  * Repository interface cho Task — theo LLD mục 3.4 (đã bổ sung getTaskById theo
@@ -21,8 +24,30 @@ interface TaskRepository {
     // Dùng để load dữ liệu cho EditTaskScreen.
     suspend fun getTaskById(id: String): ApiResult<Task>
 
-    suspend fun createTask(title: String, description: String?): ApiResult<Task>
-    suspend fun editTask(id: String, title: String, description: String?): ApiResult<Task>
+    suspend fun createTask(
+        title: String,
+        description: String?,
+        insertPosition: InsertPosition = InsertPosition.TOP,
+        categoryId: String? = null,
+        dueDate: LocalDate? = null,
+        priority: TaskPriority = TaskPriority.MEDIUM
+    ): ApiResult<Task>
+
+    /**
+     * [categoryId] — docs/Task_Category_ToDo.md mục 5.1. `null` tường minh = bỏ danh mục.
+     * [dueDate] — docs/Task_DueDate_ToDo.md mục 5.1. `null` tường minh = xóa hạn.
+     */
+    suspend fun editTask(
+        id: String,
+        title: String,
+        description: String?,
+        categoryId: String? = null,
+        dueDate: LocalDate? = null,
+        priority: TaskPriority = TaskPriority.MEDIUM
+    ): ApiResult<Task>
     suspend fun toggleTaskStatus(id: String, newStatus: TaskStatus): ApiResult<Task>
+
+    /** FR-25 (docs/Task_Reorder_ToDo.md) — `null` ở 1 trong 2 tham chiếu nghĩa là kéo vào đầu/cuối. */
+    suspend fun reorderTask(id: String, afterTaskId: String?, beforeTaskId: String?): ApiResult<Task>
     suspend fun deleteTask(id: String): ApiResult<Unit>
 }

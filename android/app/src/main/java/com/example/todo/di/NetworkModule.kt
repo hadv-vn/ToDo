@@ -3,6 +3,7 @@ package com.example.todo.di
 import com.example.todo.BuildConfig
 import com.example.todo.data.local.SessionCookieStore
 import com.example.todo.data.remote.api.AuthApiService
+import com.example.todo.data.remote.api.CategoryApiService
 import com.example.todo.data.remote.api.TaskApiService
 import com.example.todo.data.remote.interceptor.CsrfHeaderInterceptor
 import com.example.todo.data.remote.interceptor.SessionExpiredInterceptor
@@ -93,4 +94,9 @@ object NetworkModule {
     @Provides
     @Singleton
     fun provideTaskApiService(retrofit: Retrofit): TaskApiService = retrofit.create(TaskApiService::class.java)
+
+    @Provides
+    @Singleton
+    fun provideCategoryApiService(retrofit: Retrofit): CategoryApiService =
+        retrofit.create(CategoryApiService::class.java)
 }

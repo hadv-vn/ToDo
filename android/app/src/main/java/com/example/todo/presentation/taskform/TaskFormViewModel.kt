@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.TaskPriority
+import com.example.todo.domain.usecase.category.GetCategoriesUseCase
+import com.example.todo.domain.usecase.preferences.GetInsertPositionPreferenceUseCase
 import com.example.todo.domain.usecase.task.CreateTaskUseCase
 import com.example.todo.domain.usecase.task.GetTaskByIdUseCase
 import com.example.todo.domain.usecase.task.UpdateTaskUseCase
@@ -16,6 +19,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import java.time.LocalDate
 import javax.inject.Inject
 
 /**
@@ -37,7 +41,9 @@ class TaskFormViewModel @Inject constructor(
     private val savedStateHandle: SavedStateHandle,
     private val getTaskByIdUseCase: GetTaskByIdUseCase,
     private val createTaskUseCase: CreateTaskUseCase,
-    private val updateTaskUseCase: UpdateTaskUseCase
+    private val updateTaskUseCase: UpdateTaskUseCase,
+    private val getInsertPositionPreferenceUseCase: GetInsertPositionPreferenceUseCase,
+    private val getCategoriesUseCase: GetCategoriesUseCase
 ) : ViewModel() {
 
     private val taskId: String? = savedStateHandle.get<String>(Routes.EDIT_TASK_ARG_TASK_ID)
@@ -46,7 +52,11 @@ class TaskFormViewModel @Inject constructor(
         TaskFormUiState(
             taskId = taskId,
             title = savedStateHandle.get<String>(KEY_TITLE).orEmpty(),
-            description = savedStateHandle.get<String>(KEY_DESCRIPTION).orEmpty()
+            description = savedStateHandle.get<String>(KEY_DESCRIPTION).orEmpty(),
+            categoryId = savedStateHandle.get<String>(KEY_CATEGORY_ID),
+            dueDate = savedStateHandle.get<Long>(KEY_DUE_DATE)?.let { LocalDate.ofEpochDay(it) },
+            priority = savedStateHandle.get<String>(KEY_PRIORITY)?.let { TaskPriority.valueOf(it) }
+                ?: TaskPriority.MEDIUM
         )
     )
     val uiState: StateFlow<TaskFormUiState> = _uiState.asStateFlow()
@@ -55,6 +65,32 @@ class TaskFormViewModel @Inject constructor(
         if (taskId != null && _uiState.value.title.isEmpty()) {
             loadTaskForEdit(taskId)
         }
+        loadCategories()
+    }
+
+    /** FR-23 (docs/Task_Category_ToDo.md mục 5.3) — tải 1 lần khi mở form, dùng cho hàng FilterChip. */
+    private fun loadCategories() {
+        viewModelScope.launch {
+            val result = getCategoriesUseCase()
+            if (result is ApiResult.Success) {
+                _uiState.update { it.copy(availableCategories = result.data) }
+            }
+        }
+    }
+
+    fun onCategorySelected(categoryId: String?) {
+        savedStateHandle[KEY_CATEGORY_ID] = categoryId
+        _uiState.update { it.copy(categoryId = categoryId) }
+    }
+
+    fun onDueDateChange(value: LocalDate?) {
+        savedStateHandle[KEY_DUE_DATE] = value?.toEpochDay()
+        _uiState.update { it.copy(dueDate = value) }
+    }
+
+    fun onPriorityChange(value: TaskPriority) {
+        savedStateHandle[KEY_PRIORITY] = value.name
+        _uiState.update { it.copy(priority = value) }
     }
 
     private fun loadTaskForEdit(id: String) {
@@ -66,8 +102,18 @@ class TaskFormViewModel @Inject constructor(
                     val task = result.data
                     savedStateHandle[KEY_TITLE] = task.title
                     savedStateHandle[KEY_DESCRIPTION] = task.description.orEmpty()
+                    savedStateHandle[KEY_CATEGORY_ID] = task.categoryId
+                    savedStateHandle[KEY_DUE_DATE] = task.dueDate?.toEpochDay()
+                    savedStateHandle[KEY_PRIORITY] = task.priority.name
                     _uiState.update {
-                        it.copy(isLoading = false, title = task.title, description = task.description ?: "")
+                        it.copy(
+                            isLoading = false,
+                            title = task.title,
+                            description = task.description ?: "",
+                            categoryId = task.categoryId,
+                            dueDate = task.dueDate,
+                            priority = task.priority
+                        )
                     }
                 }
                 is ApiResult.Error -> {
@@ -117,9 +163,25 @@ class TaskFormViewModel @Inject constructor(
         viewModelScope.launch {
             val description = state.description.takeIf { it.isNotBlank() }
             val result = if (taskId == null) {
-                createTaskUseCase(state.title, description)
+                // FR-26 (docs/Task_Reorder_ToDo.md) — đọc cài đặt vị trí thêm mới NGAY LÚC submit
+                // (không đọc ở init) để luôn dùng giá trị mới nhất nếu người dùng vừa đổi cài đặt.
+                createTaskUseCase(
+                    state.title,
+                    description,
+                    getInsertPositionPreferenceUseCase(),
+                    state.categoryId,
+                    state.dueDate,
+                    state.priority
+                )
             } else {
-                updateTaskUseCase(taskId, state.title, description)
+                updateTaskUseCase(
+                    taskId,
+                    state.title,
+                    description,
+                    state.categoryId,
+                    state.dueDate,
+                    state.priority
+                )
             }
             when (result) {
                 is ApiResult.Success -> {
@@ -152,5 +214,8 @@ class TaskFormViewModel @Inject constructor(
     private companion object {
         const val KEY_TITLE = "title"
         const val KEY_DESCRIPTION = "description"
+        const val KEY_CATEGORY_ID = "categoryId"
+        const val KEY_DUE_DATE = "dueDate"
+        const val KEY_PRIORITY = "priority"
     }
 }
