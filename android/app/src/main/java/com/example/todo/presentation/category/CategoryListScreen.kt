@@ -48,10 +48,22 @@ fun CategoryListScreen(
     viewModel: CategoryListViewModel = hiltViewModel(),
     onNavigateBack: () -> Unit = {},
     onNavigateToCreateCategory: () -> Unit = {},
-    onNavigateToEditCategory: (String) -> Unit = {}
+    onNavigateToEditCategory: (String) -> Unit = {},
+    refreshNeeded: Boolean = false,
+    onRefreshConsumed: () -> Unit = {}
 ) {
     val uiState by viewModel.uiState.collectAsStateWithLifecycle()
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Cùng cơ chế refresh-signal với TaskListScreen (xem Routes.CATEGORY_LIST_REFRESH_NEEDED_KEY/
+    // NavGraph.kt) — tạo/sửa danh mục thành công set cờ này trên NavBackStackEntry trước khi
+    // popBackStack(), vì CategoryListViewModel chỉ loadCategories() một lần trong init{}.
+    LaunchedEffect(refreshNeeded) {
+        if (refreshNeeded) {
+            viewModel.loadCategories()
+            onRefreshConsumed()
+        }
+    }
 
     LaunchedEffect(uiState.error) {
         uiState.error?.let { error ->

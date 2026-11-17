@@ -202,17 +202,28 @@ private fun NavGraphHost(navController: NavHostController) {
             )
         }
         // FR-22 (docs/Task_Category_ToDo.md mục 5.4) — Quản lý danh mục.
-        composable(Routes.CATEGORY_LIST) {
+        composable(Routes.CATEGORY_LIST) { backStackEntry ->
+            val refreshNeeded by backStackEntry.savedStateHandle
+                .getStateFlow(Routes.CATEGORY_LIST_REFRESH_NEEDED_KEY, false)
+                .collectAsStateWithLifecycle()
             CategoryListScreen(
                 onNavigateBack = { navController.popBackStack() },
                 onNavigateToCreateCategory = { navController.navigate(Routes.CREATE_CATEGORY) },
-                onNavigateToEditCategory = { categoryId -> navController.navigate(Routes.editCategory(categoryId)) }
+                onNavigateToEditCategory = { categoryId -> navController.navigate(Routes.editCategory(categoryId)) },
+                refreshNeeded = refreshNeeded,
+                onRefreshConsumed = {
+                    backStackEntry.savedStateHandle[Routes.CATEGORY_LIST_REFRESH_NEEDED_KEY] = false
+                }
             )
         }
         composable(Routes.CREATE_CATEGORY) {
             CreateCategoryScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onSubmitSuccess = { navController.popBackStack() }
+                onSubmitSuccess = {
+                    navController.previousBackStackEntry?.savedStateHandle
+                        ?.set(Routes.CATEGORY_LIST_REFRESH_NEEDED_KEY, true)
+                    navController.popBackStack()
+                }
             )
         }
         composable(
@@ -221,7 +232,11 @@ private fun NavGraphHost(navController: NavHostController) {
         ) {
             EditCategoryScreen(
                 onNavigateBack = { navController.popBackStack() },
-                onSubmitSuccess = { navController.popBackStack() }
+                onSubmitSuccess = {
+                    navController.previousBackStackEntry?.savedStateHandle
+                        ?.set(Routes.CATEGORY_LIST_REFRESH_NEEDED_KEY, true)
+                    navController.popBackStack()
+                }
             )
         }
     }
