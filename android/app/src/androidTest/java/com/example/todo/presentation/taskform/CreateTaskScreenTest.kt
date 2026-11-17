@@ -1,15 +1,18 @@
 package com.example.todo.presentation.taskform
 
+import androidx.compose.ui.test.assertIsDisplayed
 import androidx.compose.ui.test.assertIsEnabled
 import androidx.compose.ui.test.assertIsNotEnabled
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onNodeWithText
+import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTextClearance
 import androidx.compose.ui.test.performTextInput
 import androidx.lifecycle.SavedStateHandle
 import com.example.todo.domain.common.ApiResult
 import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.domain.model.TaskStatus
 import com.example.todo.domain.model.Category
 import com.example.todo.domain.repository.CategoryRepository
@@ -20,6 +23,8 @@ import com.example.todo.domain.usecase.preferences.GetInsertPositionPreferenceUs
 import com.example.todo.domain.usecase.task.CreateTaskUseCase
 import com.example.todo.domain.usecase.task.GetTaskByIdUseCase
 import com.example.todo.domain.usecase.task.UpdateTaskUseCase
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
@@ -56,6 +61,10 @@ class CreateTaskScreenTest {
     val composeTestRule = createComposeRule()
 
     private class FakeTaskRepository : TaskRepository {
+        // Lưu lại task vừa tạo để test xác nhận đúng categoryId/dueDate/priority đã gửi — xem các
+        // test chọn danh mục/mức ưu tiên/hạn chót ở dưới.
+        var lastCreatedTask: Task? = null
+
         override suspend fun getTasks(filter: TaskStatus?) = throw NotImplementedError()
         override suspend fun getTaskById(id: String) = throw NotImplementedError()
         override suspend fun createTask(
@@ -66,19 +75,19 @@ class CreateTaskScreenTest {
             dueDate: java.time.LocalDate?,
             priority: com.example.todo.domain.model.TaskPriority
         ): ApiResult<Task> {
-            return ApiResult.Success(
-                Task(
-                    id = "new-task",
-                    title = title,
-                    description = description,
-                    status = TaskStatus.OPEN,
-                    createdAt = Instant.now(),
-                    updatedAt = Instant.now(),
-                    categoryId = categoryId,
-                    dueDate = dueDate,
-                    priority = priority
-                )
+            val created = Task(
+                id = "new-task",
+                title = title,
+                description = description,
+                status = TaskStatus.OPEN,
+                createdAt = Instant.now(),
+                updatedAt = Instant.now(),
+                categoryId = categoryId,
+                dueDate = dueDate,
+                priority = priority
             )
+            lastCreatedTask = created
+            return ApiResult.Success(created)
         }
         override suspend fun editTask(
             id: String,
@@ -99,23 +108,25 @@ class CreateTaskScreenTest {
         override suspend fun setInsertPosition(position: InsertPosition) = Unit
     }
 
-    private class FakeCategoryRepository : CategoryRepository {
-        override suspend fun getCategories(): ApiResult<List<Category>> = ApiResult.Success(emptyList())
+    private class FakeCategoryRepository(private val categories: List<Category> = emptyList()) : CategoryRepository {
+        override suspend fun getCategories(): ApiResult<List<Category>> = ApiResult.Success(categories)
         override suspend fun createCategory(name: String, color: String?, icon: String?) = throw NotImplementedError()
         override suspend fun updateCategory(id: String, name: String, color: String, icon: String) =
             throw NotImplementedError()
         override suspend fun deleteCategory(id: String) = throw NotImplementedError()
     }
 
-    private fun createFormViewModel(): TaskFormViewModel {
-        val repository = FakeTaskRepository()
+    private fun createFormViewModel(
+        taskRepository: FakeTaskRepository = FakeTaskRepository(),
+        categories: List<Category> = emptyList()
+    ): TaskFormViewModel {
         return TaskFormViewModel(
             savedStateHandle = SavedStateHandle(), // taskId == null -> Create mode
-            getTaskByIdUseCase = GetTaskByIdUseCase(repository),
-            createTaskUseCase = CreateTaskUseCase(repository),
-            updateTaskUseCase = UpdateTaskUseCase(repository),
+            getTaskByIdUseCase = GetTaskByIdUseCase(taskRepository),
+            createTaskUseCase = CreateTaskUseCase(taskRepository),
+            updateTaskUseCase = UpdateTaskUseCase(taskRepository),
             getInsertPositionPreferenceUseCase = GetInsertPositionPreferenceUseCase(FakePreferencesRepository()),
-            getCategoriesUseCase = GetCategoriesUseCase(FakeCategoryRepository())
+            getCategoriesUseCase = GetCategoriesUseCase(FakeCategoryRepository(categories))
         )
     }
 
@@ -154,5 +165,110 @@ class CreateTaskScreenTest {
         // Xóa hết text đã nhập -> title rỗng trở lại -> nút phải tự disable (phản ứng theo state).
         composeTestRule.onNodeWithText("A").performTextClearance()
         composeTestRule.onNodeWithText("Lưu").assertIsNotEnabled()
+    }
+
+    // --- FR-18 (docs/Task_Priority_ToDo.md) — chọn mức ưu tiên ---
+
+    @Test
+    fun chonMucUuTienCao_thiTaoTaskVoiPriorityHigh() {
+        val repository = FakeTaskRepository()
+        composeTestRule.setContent {
+            CreateTaskScreen(viewModel = createFormViewModel(taskRepository = repository))
+        }
+
+        composeTestRule.onNodeWithText("Tiêu đề").performTextInput("Task moi")
+        composeTestRule.onNodeWithText("Cao").performClick()
+        composeTestRule.onNodeWithText("Lưu").performClick()
+
+        assertEquals(TaskPriority.HIGH, repository.lastCreatedTask?.priority)
+    }
+
+    @Test
+    fun khongChonMucUuTien_thiTaoTaskVoiPriorityMacDinhTrungBinh() {
+        val repository = FakeTaskRepository()
+        composeTestRule.setContent {
+            CreateTaskScreen(viewModel = createFormViewModel(taskRepository = repository))
+        }
+
+        composeTestRule.onNodeWithText("Tiêu đề").performTextInput("Task moi")
+        composeTestRule.onNodeWithText("Lưu").performClick()
+
+        assertEquals(TaskPriority.MEDIUM, repository.lastCreatedTask?.priority)
+    }
+
+    // --- FR-23 (docs/Task_Category_ToDo.md) — chọn danh mục ---
+
+    @Test
+    fun coDanhMucKhaDung_thiHienChipVaChonDuocDanhMuc() {
+        val repository = FakeTaskRepository()
+        val category = Category(id = "cat-1", name = "Công việc", color = "#1E88E5", icon = "💼")
+        composeTestRule.setContent {
+            CreateTaskScreen(viewModel = createFormViewModel(taskRepository = repository, categories = listOf(category)))
+        }
+
+        composeTestRule.onNodeWithText("Tiêu đề").performTextInput("Task moi")
+        composeTestRule.onNodeWithText("💼 Công việc").performClick()
+        composeTestRule.onNodeWithText("Lưu").performClick()
+
+        assertEquals("cat-1", repository.lastCreatedTask?.categoryId)
+    }
+
+    @Test
+    fun khongChonDanhMuc_thiTaoTaskVoiCategoryIdNull() {
+        val repository = FakeTaskRepository()
+        val category = Category(id = "cat-1", name = "Công việc", color = "#1E88E5", icon = "💼")
+        composeTestRule.setContent {
+            CreateTaskScreen(viewModel = createFormViewModel(taskRepository = repository, categories = listOf(category)))
+        }
+
+        composeTestRule.onNodeWithText("Tiêu đề").performTextInput("Task moi")
+        composeTestRule.onNodeWithText("Lưu").performClick()
+
+        assertEquals(null, repository.lastCreatedTask?.categoryId)
+    }
+
+    @Test
+    fun chuaCoDanhMucNao_thiHienChipTaoDanhMucVaGoiCallback() {
+        var navigatedToCategoryList = false
+        composeTestRule.setContent {
+            CreateTaskScreen(
+                viewModel = createFormViewModel(),
+                onNavigateToCategoryList = { navigatedToCategoryList = true }
+            )
+        }
+
+        composeTestRule.onNodeWithText("+ Tạo danh mục").performClick()
+
+        assertTrue(navigatedToCategoryList)
+    }
+
+    // --- FR-20 (docs/Task_DueDate_ToDo.md) — chọn hạn chót ---
+
+    @Test
+    fun bamThemHanChot_thiMoDialogChonNgay_bamHuy_thiDongDialogKhongDoiDueDate() {
+        composeTestRule.setContent {
+            CreateTaskScreen(viewModel = createFormViewModel())
+        }
+
+        composeTestRule.onNodeWithText("+ Thêm hạn chót").performClick()
+        composeTestRule.onNodeWithText("Chọn").assertIsDisplayed()
+
+        composeTestRule.onNodeWithText("Hủy").performClick()
+
+        // Dialog đã đóng, vẫn chưa có hạn chót -> nút "+ Thêm hạn chót" hiện lại.
+        composeTestRule.onNodeWithText("+ Thêm hạn chót").assertIsDisplayed()
+    }
+
+    @Test
+    fun khongChonHanChot_thiTaoTaskVoiDueDateNull() {
+        val repository = FakeTaskRepository()
+        composeTestRule.setContent {
+            CreateTaskScreen(viewModel = createFormViewModel(taskRepository = repository))
+        }
+
+        composeTestRule.onNodeWithText("Tiêu đề").performTextInput("Task moi")
+        composeTestRule.onNodeWithText("Lưu").performClick()
+
+        assertEquals(null, repository.lastCreatedTask?.dueDate)
     }
 }

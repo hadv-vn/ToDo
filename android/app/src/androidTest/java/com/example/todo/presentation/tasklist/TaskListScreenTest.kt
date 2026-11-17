@@ -8,6 +8,7 @@ import androidx.compose.ui.test.hasText
 import androidx.compose.ui.test.isToggleable
 import androidx.compose.ui.test.junit4.createComposeRule
 import androidx.compose.ui.test.onAllNodesWithText
+import androidx.compose.ui.test.onNodeWithContentDescription
 import androidx.compose.ui.test.onNodeWithText
 import androidx.compose.ui.test.performClick
 import androidx.compose.ui.test.performTouchInput
@@ -30,9 +31,11 @@ import com.example.todo.domain.usecase.task.DeleteTaskUseCase
 import com.example.todo.domain.usecase.task.GetTasksUseCase
 import com.example.todo.domain.usecase.task.ReorderTaskUseCase
 import com.example.todo.domain.usecase.task.ToggleTaskStatusUseCase
+import org.junit.Assert.assertEquals
 import org.junit.Rule
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * Compose UI test cho luồng danh sách Task (LLD mục 6.4/8) — checkbox phản ánh đúng trạng thái
@@ -132,12 +135,16 @@ class TaskListScreenTest {
     }
 
     private class FakePreferencesRepository : PreferencesRepository {
+        // FR-26 — ghi lại lần gọi setInsertPosition gần nhất để test xác nhận đã lưu đúng lựa chọn.
+        var lastSetPosition: InsertPosition? = null
         override suspend fun getInsertPosition(): InsertPosition = InsertPosition.TOP
-        override suspend fun setInsertPosition(position: InsertPosition) = Unit
+        override suspend fun setInsertPosition(position: InsertPosition) {
+            lastSetPosition = position
+        }
     }
 
-    private class FakeCategoryRepository : CategoryRepository {
-        override suspend fun getCategories(): ApiResult<List<Category>> = ApiResult.Success(emptyList())
+    private class FakeCategoryRepository(private val categories: List<Category> = emptyList()) : CategoryRepository {
+        override suspend fun getCategories(): ApiResult<List<Category>> = ApiResult.Success(categories)
         override suspend fun createCategory(name: String, color: String?, icon: String?) = throw NotImplementedError()
         override suspend fun updateCategory(id: String, name: String, color: String, icon: String) =
             throw NotImplementedError()
@@ -157,8 +164,11 @@ class TaskListScreenTest {
     private fun createListViewModel(tasks: List<Task>): TaskListViewModel =
         createListViewModel(FakeTaskRepositoryWithFixedList(tasks))
 
-    private fun createListViewModel(taskRepository: TaskRepository): TaskListViewModel {
-        val preferencesRepository = FakePreferencesRepository()
+    private fun createListViewModel(
+        taskRepository: TaskRepository,
+        categoryRepository: CategoryRepository = FakeCategoryRepository(),
+        preferencesRepository: PreferencesRepository = FakePreferencesRepository()
+    ): TaskListViewModel {
         return TaskListViewModel(
             getTasksUseCase = GetTasksUseCase(taskRepository),
             toggleTaskStatusUseCase = ToggleTaskStatusUseCase(taskRepository),
@@ -166,7 +176,7 @@ class TaskListScreenTest {
             reorderTaskUseCase = ReorderTaskUseCase(taskRepository),
             getInsertPositionPreferenceUseCase = GetInsertPositionPreferenceUseCase(preferencesRepository),
             setInsertPositionPreferenceUseCase = SetInsertPositionPreferenceUseCase(preferencesRepository),
-            getCategoriesUseCase = GetCategoriesUseCase(FakeCategoryRepository()),
+            getCategoriesUseCase = GetCategoriesUseCase(categoryRepository),
             logoutUseCase = LogoutUseCase(FakeAuthRepositoryLogoutOnly())
         )
     }
@@ -335,5 +345,94 @@ class TaskListScreenTest {
 
         assert(loggedOut) { "onLoggedOut phải được gọi ngay sau khi nhấn Đăng xuất" }
         composeTestRule.onAllNodesWithText("Hủy").assertCountEquals(0)
+    }
+
+    // --- FR-24 (docs/Task_Category_ToDo.md mục 6.4) — badge danh mục trên TaskRow ---
+
+    @Test
+    fun taskCoDanhMuc_thiHienBadgeDanhMucTrenRow() {
+        val category = Category(id = "cat-1", name = "Công việc", color = "#1E88E5", icon = "💼")
+        val taskWithCategory = openTask.copy(categoryId = "cat-1")
+        composeTestRule.setContent {
+            TaskListScreen(
+                viewModel = createListViewModel(
+                    taskRepository = FakeTaskRepositoryWithFixedList(listOf(taskWithCategory)),
+                    categoryRepository = FakeCategoryRepository(listOf(category))
+                )
+            )
+        }
+
+        composeTestRule.onNodeWithText("💼 Công việc").assertExists()
+    }
+
+    @Test
+    fun taskKhongCoDanhMuc_thiKhongHienBadge() {
+        val category = Category(id = "cat-1", name = "Công việc", color = "#1E88E5", icon = "💼")
+        composeTestRule.setContent {
+            TaskListScreen(
+                viewModel = createListViewModel(
+                    taskRepository = FakeTaskRepositoryWithFixedList(listOf(openTask)), // categoryId == null
+                    categoryRepository = FakeCategoryRepository(listOf(category))
+                )
+            )
+        }
+
+        composeTestRule.onAllNodesWithText("💼 Công việc").assertCountEquals(0)
+    }
+
+    // --- FR-21 (docs/Task_DueDate_ToDo.md mục 5.4) — dòng "Hạn:" trên TaskRow ---
+
+    @Test
+    fun taskCoDueDate_thiHienDongHanChot() {
+        val taskWithDueDate = openTask.copy(dueDate = LocalDate.of(2026, 12, 25))
+        composeTestRule.setContent {
+            TaskListScreen(viewModel = createListViewModel(listOf(taskWithDueDate)))
+        }
+
+        composeTestRule.onNodeWithText("Hạn: 25/12/2026").assertExists()
+    }
+
+    @Test
+    fun taskKhongCoDueDate_thiKhongHienDongHan() {
+        composeTestRule.setContent {
+            TaskListScreen(viewModel = createListViewModel(listOf(openTask))) // dueDate == null
+        }
+
+        composeTestRule.onNode(hasText("Hạn:", substring = true)).assertDoesNotExist()
+    }
+
+    // --- FR-26 (docs/Task_Reorder_ToDo.md mục 6.2) — cài đặt vị trí thêm task mới ---
+
+    @Test
+    fun nhanIconCaiDat_thiHienDialogChonViTriChenTaskMoi() {
+        composeTestRule.setContent {
+            TaskListScreen(viewModel = createListViewModel(listOf(openTask)))
+        }
+
+        composeTestRule.onNodeWithContentDescription("Cài đặt").performClick()
+
+        composeTestRule.onNodeWithText("Thêm task mới vào").assertExists()
+        composeTestRule.onNodeWithText("Đầu danh sách").assertExists()
+        composeTestRule.onNodeWithText("Cuối danh sách").assertExists()
+    }
+
+    @Test
+    fun chonCuoiDanhSach_thiLuuPreferenceVaDongDialog() {
+        val preferencesRepository = FakePreferencesRepository()
+        composeTestRule.setContent {
+            TaskListScreen(
+                viewModel = createListViewModel(
+                    taskRepository = FakeTaskRepositoryWithFixedList(listOf(openTask)),
+                    preferencesRepository = preferencesRepository
+                )
+            )
+        }
+
+        composeTestRule.onNodeWithContentDescription("Cài đặt").performClick()
+        composeTestRule.onNodeWithText("Cuối danh sách").performClick()
+
+        assertEquals(InsertPosition.BOTTOM, preferencesRepository.lastSetPosition)
+        // onInsertPositionSelected set showInsertPositionDialog = false ngay -> dialog phải đóng.
+        composeTestRule.onAllNodesWithText("Thêm task mới vào").assertCountEquals(0)
     }
 }

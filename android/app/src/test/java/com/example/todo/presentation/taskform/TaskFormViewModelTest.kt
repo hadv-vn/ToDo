@@ -4,6 +4,7 @@ import androidx.lifecycle.SavedStateHandle
 import app.cash.turbine.test
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
+import com.example.todo.domain.model.Category
 import com.example.todo.domain.model.InsertPosition
 import com.example.todo.domain.model.Task
 import com.example.todo.domain.model.TaskPriority
@@ -178,6 +179,45 @@ class TaskFormViewModelTest {
         coVerify(exactly = 1) { createTaskUseCase("Task moi", null, InsertPosition.TOP, null, dueDate) }
     }
 
+    @Test
+    fun `Create mode onCategorySelected cap nhat state va onSubmit gui dung categoryId`() = runTest(testDispatcher) {
+        coEvery {
+            createTaskUseCase("Task moi", null, InsertPosition.TOP, "cat-1", null, TaskPriority.MEDIUM)
+        } returns ApiResult.Success(existingTask)
+
+        val viewModel = createViewModel()
+        viewModel.onTitleChange("Task moi")
+        viewModel.onCategorySelected("cat-1")
+
+        assertEquals("cat-1", viewModel.uiState.value.categoryId)
+
+        viewModel.onSubmit()
+
+        coVerify(exactly = 1) {
+            createTaskUseCase("Task moi", null, InsertPosition.TOP, "cat-1", null, TaskPriority.MEDIUM)
+        }
+    }
+
+    @Test
+    fun `init goi GetCategoriesUseCase thanh cong thi nap vao availableCategories`() = runTest(testDispatcher) {
+        val categories = listOf(Category(id = "cat-1", name = "Công việc", color = "#1E88E5", icon = "💼"))
+        coEvery { getCategoriesUseCase() } returns ApiResult.Success(categories)
+
+        val viewModel = createViewModel()
+
+        assertEquals(categories, viewModel.uiState.value.availableCategories)
+    }
+
+    @Test
+    fun `init GetCategoriesUseCase loi thi giu availableCategories rong, khong set submitError`() = runTest(testDispatcher) {
+        coEvery { getCategoriesUseCase() } returns ApiResult.Error(ApiErrorCode.SERVER_ERROR, "Có lỗi xảy ra")
+
+        val viewModel = createViewModel()
+
+        assertEquals(emptyList<Category>(), viewModel.uiState.value.availableCategories)
+        assertEquals(null, viewModel.uiState.value.submitError)
+    }
+
     // --- Edit mode (taskId != null) ---
 
     @Test
@@ -293,6 +333,41 @@ class TaskFormViewModelTest {
         coVerify(exactly = 1) {
             updateTaskUseCase("task-1", "Mua sữa", "2 lít", null, null, TaskPriority.HIGH)
         }
+    }
+
+    @Test
+    fun `Edit mode init co categoryId thi nap dung vao state, onSubmit gui dung categoryId moi`() = runTest(testDispatcher) {
+        coEvery { getTaskByIdUseCase("task-1") } returns
+            ApiResult.Success(existingTask.copy(categoryId = "cat-old"))
+        coEvery { updateTaskUseCase("task-1", "Mua sữa", "2 lít", "cat-new", null, TaskPriority.MEDIUM) } returns
+            ApiResult.Success(existingTask.copy(categoryId = "cat-new"))
+        val savedStateHandle = SavedStateHandle(mapOf(Routes.EDIT_TASK_ARG_TASK_ID to "task-1"))
+        val viewModel = createViewModel(savedStateHandle)
+
+        assertEquals("cat-old", viewModel.uiState.value.categoryId)
+
+        viewModel.onCategorySelected("cat-new")
+        viewModel.onSubmit()
+
+        coVerify(exactly = 1) { updateTaskUseCase("task-1", "Mua sữa", "2 lít", "cat-new", null, TaskPriority.MEDIUM) }
+    }
+
+    @Test
+    fun `Edit mode onCategorySelected null thi bo danh muc, onSubmit gui categoryId null`() = runTest(testDispatcher) {
+        coEvery { getTaskByIdUseCase("task-1") } returns
+            ApiResult.Success(existingTask.copy(categoryId = "cat-old"))
+        coEvery { updateTaskUseCase("task-1", "Mua sữa", "2 lít", null, null, TaskPriority.MEDIUM) } returns
+            ApiResult.Success(existingTask.copy(categoryId = null))
+        val savedStateHandle = SavedStateHandle(mapOf(Routes.EDIT_TASK_ARG_TASK_ID to "task-1"))
+        val viewModel = createViewModel(savedStateHandle)
+
+        viewModel.onCategorySelected(null)
+
+        assertEquals(null, viewModel.uiState.value.categoryId)
+
+        viewModel.onSubmit()
+
+        coVerify(exactly = 1) { updateTaskUseCase("task-1", "Mua sữa", "2 lít", null, null, TaskPriority.MEDIUM) }
     }
 
     @Test

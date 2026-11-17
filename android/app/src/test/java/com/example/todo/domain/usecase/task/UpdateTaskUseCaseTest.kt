@@ -3,6 +3,7 @@ package com.example.todo.domain.usecase.task
 import com.example.todo.domain.common.ApiErrorCode
 import com.example.todo.domain.common.ApiResult
 import com.example.todo.domain.model.Task
+import com.example.todo.domain.model.TaskPriority
 import com.example.todo.domain.model.TaskStatus
 import com.example.todo.domain.repository.TaskRepository
 import io.mockk.coEvery
@@ -13,6 +14,7 @@ import org.junit.Assert.assertEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import java.time.Instant
+import java.time.LocalDate
 
 /**
  * Unit test cho [UpdateTaskUseCase] — theo LLD mục 4.1: validate title.trim().isNotEmpty() mang
@@ -71,5 +73,78 @@ class UpdateTaskUseCaseTest {
 
         assertEquals(ApiResult.Success(updatedTask), result)
         coVerify(exactly = 1) { taskRepository.editTask("task-1", "Task da sua", null) }
+    }
+
+    // --- FR-23/FR-20/FR-18 — categoryId/dueDate/priority truyền xuống Repository.editTask ---
+
+    @Test
+    fun `khong truyen them tham so nao thi dung mac dinh categoryId null dueDate null priority MEDIUM`() = runTest {
+        coEvery {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, null, TaskPriority.MEDIUM)
+        } returns ApiResult.Success(updatedTask)
+
+        val result = useCase("task-1", "Task da sua", "mo ta moi")
+
+        assertEquals(ApiResult.Success(updatedTask), result)
+        coVerify(exactly = 1) {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, null, TaskPriority.MEDIUM)
+        }
+    }
+
+    @Test
+    fun `co categoryId thi goi Repository editTask dung categoryId`() = runTest {
+        coEvery {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", "cat-1", null, TaskPriority.MEDIUM)
+        } returns ApiResult.Success(updatedTask)
+
+        val result = useCase("task-1", "Task da sua", "mo ta moi", categoryId = "cat-1")
+
+        assertEquals(ApiResult.Success(updatedTask), result)
+        coVerify(exactly = 1) {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", "cat-1", null, TaskPriority.MEDIUM)
+        }
+    }
+
+    @Test
+    fun `categoryId null tuong minh (bo danh muc) thi goi Repository voi categoryId null`() = runTest {
+        coEvery {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, null, TaskPriority.MEDIUM)
+        } returns ApiResult.Success(updatedTask)
+
+        val result = useCase("task-1", "Task da sua", "mo ta moi", categoryId = null)
+
+        assertEquals(ApiResult.Success(updatedTask), result)
+        coVerify(exactly = 1) {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, null, TaskPriority.MEDIUM)
+        }
+    }
+
+    @Test
+    fun `co dueDate thi goi Repository editTask dung dueDate`() = runTest {
+        val dueDate = LocalDate.of(2026, 12, 25)
+        coEvery {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, dueDate, TaskPriority.MEDIUM)
+        } returns ApiResult.Success(updatedTask)
+
+        val result = useCase("task-1", "Task da sua", "mo ta moi", dueDate = dueDate)
+
+        assertEquals(ApiResult.Success(updatedTask), result)
+        coVerify(exactly = 1) {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, dueDate, TaskPriority.MEDIUM)
+        }
+    }
+
+    @Test
+    fun `priority LOW thi goi Repository editTask dung priority`() = runTest {
+        coEvery {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, null, TaskPriority.LOW)
+        } returns ApiResult.Success(updatedTask)
+
+        val result = useCase("task-1", "Task da sua", "mo ta moi", priority = TaskPriority.LOW)
+
+        assertEquals(ApiResult.Success(updatedTask), result)
+        coVerify(exactly = 1) {
+            taskRepository.editTask("task-1", "Task da sua", "mo ta moi", null, null, TaskPriority.LOW)
+        }
     }
 }
