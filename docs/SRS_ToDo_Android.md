@@ -26,6 +26,37 @@
 
 ---
 
+## CẬP NHẬT 2026-11-16 — FR-18 đến FR-26 (Category, Hạn chót, Mức ưu tiên, Kéo-thả sắp xếp) đặc tả ở tài liệu riêng, KHÔNG gộp vào mục 3 dưới đây
+
+4 tăng trưởng thêm sau v1 — mỗi tăng trưởng 1 tài liệu riêng (SRS + HLD +
+LLD + API + test scenario gộp chung 1 file, khác format "SRS tổng" của
+file này) vì mỗi tài liệu chỉ ~250–370 dòng, gộp ngược vào đây sẽ làm file
+này quá dài mà không thêm giá trị truy vết:
+
+| FR | Tên | Tài liệu |
+|---|---|---|
+| FR-18 | Chọn mức ưu tiên khi tạo/sửa task | `docs/Task_Priority_ToDo.md` |
+| FR-19 | Hiển thị mức ưu tiên trên danh sách task | `docs/Task_Priority_ToDo.md`, `docs/Task_DueDate_ToDo.md` |
+| FR-20 | Chọn hạn chót khi tạo/sửa task | `docs/Task_DueDate_ToDo.md` |
+| FR-21 | Hiển thị/cảnh báo hạn chót trên danh sách task | `docs/Task_DueDate_ToDo.md` |
+| FR-22 | Tạo/sửa/xóa danh mục (Category) | `docs/Task_Category_ToDo.md` |
+| FR-23 | Gán danh mục cho task | `docs/Task_Category_ToDo.md` |
+| FR-24 | Lọc/hiển thị task theo danh mục | `docs/Task_Category_ToDo.md` |
+| FR-25 | Kéo-thả sắp xếp lại thứ tự task | `docs/Task_Reorder_ToDo.md` |
+| FR-26 | Chọn vị trí thêm task mới (đầu/cuối danh sách) | `docs/Task_Reorder_ToDo.md` |
+
+Quyết định dữ liệu/kiến trúc đáng chú ý của nhóm này có ADR riêng: xem
+[`docs/adr/0001-task-manual-reorder-sort-key.md`](adr/0001-task-manual-reorder-sort-key.md)
+(fractional `sortKey` cho FR-25/26).
+
+**Lưu ý traceability**: NFR-2, 3, 5, 6, 7, 8, 9, 10 (mục 4 dưới đây) hiện
+không có mã tương ứng gắn trong `Test_Scenarios_ToDo_Android.md` hay KDoc
+code — khác hẳn FR (luôn gắn mã rõ) — cần review tay riêng, ghi nhận ở
+`health-check/index.html` chỉ số `c1 Traceability Coverage`, không xử lý
+trong lần cập nhật freshness này.
+
+---
+
 ## 1. Giới thiệu
 
 ### 1.1 Mục đích tài liệu

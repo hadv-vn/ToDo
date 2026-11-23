@@ -312,3 +312,57 @@ API/app thật, không chỉ đọc code):**
    TC-DEL-03, TC-TOGGLE-05). Sửa bằng hàm `stateAfterRemovingTask()` mới trong
    `TaskListViewModel.kt`, có thêm 2 unit test tái hiện đúng kịch bản này trong
    `TaskListViewModelTest.kt`.
+
+---
+
+## 7. Kịch bản bổ sung — Category, Hạn chót, Mức ưu tiên, Kéo-thả sắp xếp (2026-11-16/17)
+
+Bổ sung sau khi code 4 tính năng mở rộng (commit `72cbd3b`) + unit test
+tương ứng (commit `c55147a`) — phần còn thiếu đúng là finding `c3
+Freshness` của `health-check/index.html` trước khi sửa lần này. Đặc tả
+AC đầy đủ nằm ở 4 tài liệu riêng (`Task_Category_ToDo.md` mục 3,
+`Task_DueDate_ToDo.md`, `Task_Priority_ToDo.md`, `Task_Reorder_ToDo.md`
+mục 3) — mục này chỉ liệt kê kịch bản ↔ test thật đã chạy, theo đúng quy
+ước mục 2/5/6 ở trên.
+
+### 7.1 Danh mục (Category) — FR-22, FR-23, FR-24
+
+| # | Kịch bản | Test đã chạy |
+|---|---|---|
+| TC-CAT-01 | Tên danh mục rỗng/chỉ khoảng trắng → lỗi, không gọi Repository | `CreateCategoryUseCaseTest`, `UpdateCategoryUseCaseTest`: *"name rong thi tra Error BAD_REQUEST va khong goi Repository"*, *"name chi co khoang trang thi..."* |
+| TC-CAT-02 | Tên hợp lệ → gọi Repository với tên đã trim | `CreateCategoryUseCaseTest`/`UpdateCategoryUseCaseTest`: *"name hop le thi goi Repository voi name da trim"* |
+| TC-CAT-03 | `color`/`icon` không truyền (null) → vẫn gọi Repository với null, để backend tự chọn mặc định | `CreateCategoryUseCaseTest`: *"color va icon null thi van goi Repository voi null"*; `CategoryRepositoryImplTest`: *"createCategory voi color va icon null thi van gui request voi null"* |
+| TC-CAT-04 | Xóa danh mục thành công / danh mục không tồn tại (404) | `DeleteCategoryUseCaseTest`: *"goi dung Repository voi id va tra Success Unit"*, *"Repository tra Error thi tra nguyen Error"* |
+| TC-CAT-05 | Lấy danh sách danh mục thành công / lỗi mạng | `GetCategoriesUseCaseTest`: *"thanh cong thi tra dung danh sach tu Repository"*, *"Repository tra NetworkError thi tra nguyen NetworkError"* |
+| TC-CAT-06 | Mapping `CategoryDto` → `Category` đúng field | `CategoryRepositoryImplTest`: *"getCategories thanh cong thi map dung List CategoryDto sang List Category"* |
+| TC-CAT-07 | Bấm vào danh mục trong `CategoryListScreen` mở được màn Sửa | Sửa ở commit `a76f537` (fix: gắn clickable cho `CategoryRow`) — **chưa có instrumented test riêng**, xác nhận bằng chạy thủ công; ghi nhận là khoảng trống, không phải đã có test. |
+
+### 7.2 Hạn chót & Mức ưu tiên — FR-18, FR-19, FR-20, FR-21
+
+| # | Kịch bản | Test đã chạy |
+|---|---|---|
+| TC-DUE-01 | Tạo/sửa task có `dueDate` → truyền đúng xuống Repository, giữ nguyên tham số khác | `CreateTaskUseCaseTest`: *"co dueDate thi goi Repository dung dueDate"*; `UpdateTaskUseCaseTest` (tương tự, xem file) |
+| TC-PRI-01 | Không truyền `priority` → mặc định `TaskPriority.MEDIUM` | `CreateTaskUseCaseTest`: *"khong truyen them tham so nao thi dung mac dinh InsertPosition TOP va TaskPriority MEDIUM"* |
+| TC-PRI-02 | `priority` = `HIGH`/`LOW` → không bị ghi đè về mặc định | `CreateTaskUseCaseTest`: *"priority HIGH thi goi Repository dung priority, khong bi ghi de ve mac dinh"* |
+| TC-PRI-03 | Hiển thị `PriorityChipRow`/màu mức ưu tiên trên `TaskListScreen` | **Chưa có Compose UI test riêng** cho hiển thị — chỉ có test ở tầng UseCase/ViewModel truyền đúng dữ liệu, phần hiển thị trực quan vẫn cần xác nhận thủ công (cùng nhóm giới hạn đã ghi ở mục 5). |
+
+### 7.3 Kéo-thả sắp xếp & vị trí chèn mới — FR-25, FR-26
+
+| # | Kịch bản | Test đã chạy |
+|---|---|---|
+| TC-REORDER-01 | Kéo task vào giữa 2 task khác → gọi `reorderTask` đúng `afterTaskId`/`beforeTaskId` | `ReorderTaskUseCaseTest`: *"goi dung Repository voi id afterTaskId va beforeTaskId"* |
+| TC-REORDER-02 | Kéo lên đầu danh sách (`afterTaskId = null`) | `ReorderTaskUseCaseTest`: *"afterTaskId null nghia la keo vao dau danh sach"* |
+| TC-REORDER-03 | Kéo xuống cuối danh sách (`beforeTaskId = null`) | `ReorderTaskUseCaseTest`: *"beforeTaskId null nghia la keo vao cuoi danh sach"* |
+| TC-REORDER-04 | Server lỗi (task bị xóa ở nơi khác) → trả nguyên Error, không nuốt lỗi | `ReorderTaskUseCaseTest`: *"Repository tra Error thi tra nguyen Error, khong nuot loi"* |
+| TC-REORDER-05 | Di chuyển cục bộ khi kéo qua nhiều hàng xóm **không** gọi mạng; chỉ `onTaskDragEnded` gọi `ReorderTaskUseCase` đúng 1 lần (thiết kế chống spam request — `Task_Reorder_ToDo.md` mục 5.3) | **Chưa có unit test `TaskListViewModelTest` riêng cho `onTaskDragStarted`/`onTaskDragStepped`/`onTaskDragEnded`** — đây là khoảng trống thật, khác các nhóm trên; cần bổ sung ở lượt sau, không tự nhận đã test khi chưa có. |
+| TC-REORDER-06 | Cài đặt vị trí thêm task mới (TOP/BOTTOM) đọc/ghi đúng `DataStore` | `GetInsertPositionPreferenceUseCaseTest`/`SetInsertPositionPreferenceUseCaseTest`: *"tra dung gia tri TOP/BOTTOM tu Repository"*, *"goi dung Repository voi TOP/BOTTOM"*; `PreferencesRepositoryImplTest`: *"getInsertPosition tra TOP khi DataStore rong (mac dinh)"*, *"setInsertPosition BOTTOM/TOP thi ghi gia tri vao dung key"* |
+
+**Cố tình để lại thủ công / chưa có test** (khác hẳn phần đã automation ở
+trên, ghi rõ để không tự nhận đã xong khi chưa có bằng chứng):
+
+| Nhóm | Lý do |
+|---|---|
+| TC-CAT-07 (clickable CategoryRow) | Sửa bug UI nhỏ ở `a76f537`, chưa có instrumented test riêng |
+| TC-PRI-03 (hiển thị màu/chip mức ưu tiên) | Cần Compose UI test đọc màu/text hiển thị, chưa viết |
+| TC-REORDER-05 (chống spam request khi kéo qua nhiều hàng xóm) | Logic quan trọng nhất của cả tính năng Reorder nhưng chưa có test ở tầng ViewModel — **ưu tiên cao nhất** nếu làm tiếp bộ test này |
+| Gesture kéo-thả thật trên UI (`performTouchInput`) | Cần instrumented test giả lập drag — chưa viết, giống TC-PERF ở mục 5 |

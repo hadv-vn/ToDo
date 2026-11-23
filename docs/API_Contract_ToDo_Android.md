@@ -60,6 +60,27 @@ service/repository đã cập nhật khớp).
 
 ---
 
+## CẬP NHẬT 2026-11-16 — Thêm Category, Reorder, DueDate/Priority, và endpoint thống kê ADMIN
+
+Tiếp nối cập nhật 2026-11-02 trên (vẫn đúng, không đổi lại). 4 tăng
+trưởng mới (commit `72cbd3b`) + 1 tăng trưởng admin (commit `eb94e26`)
+thêm endpoint mới vào cùng base `api/v1/` (envelope/auth/CSRF giữ nguyên
+quy ước ở mục 1 dưới đây), đặc tả đầy đủ request/response/lỗi nằm ở tài
+liệu riêng từng tính năng — không lặp lại ở đây:
+
+| Endpoint | Tính năng | Đặc tả đầy đủ |
+|---|---|---|
+| `GET/POST/PUT/DELETE api/v1/categories*` | Category CRUD (FR-22/23/24) | `docs/Task_Category_ToDo.md` mục 4 |
+| `PATCH api/v1/tasks/:id/reorder` | Kéo-thả sắp xếp (FR-25) | `docs/Task_Reorder_ToDo.md` mục 4.2 — quyết định `sortKey`: [ADR 0001](adr/0001-task-manual-reorder-sort-key.md) |
+| `POST api/v1/tasks` — thêm field optional `insertPosition`/`categoryId`/`dueDate`/`priority` | FR-18→21, FR-26 | `docs/Task_DueDate_ToDo.md`, `docs/Task_Priority_ToDo.md`, `docs/Task_Reorder_ToDo.md` mục 4.3 |
+| `PUT api/v1/tasks/:id` — thêm cùng 3 field (trừ `insertPosition`, chỉ dùng lúc tạo) | FR-18→21 | như trên |
+| `GET api/v1/admin/users/{id}/task-stats`, `GET api/v1/admin/task-stats` | Thống kê task cho ADMIN, **aggregate-only** | `docs/Admin_Task_Statistics_ToDo.md` mục 3 — nguyên tắc bảo mật: [ADR 0005](adr/0005-admin-task-statistics-aggregate-only.md) |
+
+Toàn bộ endpoint mới tiếp tục sống trong `auth-core/backend/src/features/
+todo-task-module/` (không tạo backend thứ 2 — [ADR 0003](adr/0003-auth-core-shared-backend-submodule.md)).
+
+---
+
 ## 0. Hai điểm mở đã được giao quyết định dứt điểm (LỊCH SỬ — đã lỗi thời, xem mục cập nhật trên)
 
 1. **Bổ sung `GET /tasks/:id`**: ĐÃ THÊM vào contract chính thức (mục 3.3).

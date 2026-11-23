@@ -15,6 +15,35 @@
 
 ---
 
+## CẬP NHẬT 2026-11-16 — Class design cho Category/DueDate/Priority/Reorder, KHÔNG viết lại mục 1–11 dưới đây
+
+Mục 1–11 dưới đây là LLD gốc cho Phase 0–5 (Auth + Task CRUD cơ bản), đã
+code xong và không đổi lại. 4 tính năng mở rộng (commit `72cbd3b`) có LLD
+riêng, đủ chi tiết class/sequence/pseudocode, nằm ở chính 4 tài liệu đặc
+tả tính năng (không nhân đôi nội dung vào đây):
+
+- [`Task_Category_ToDo.md`](Task_Category_ToDo.md) mục 5 — class Android
+  (`CategoryListViewModel`/`CategoryFormViewModel`, UseCase, Repository).
+- [`Task_DueDate_ToDo.md`](Task_DueDate_ToDo.md) mục 5 — `DueDateField`,
+  thay đổi `TaskFormViewModel`/`TaskRepository`.
+- [`Task_Priority_ToDo.md`](Task_Priority_ToDo.md) mục 5 — `PriorityChipRow`,
+  `TaskPriority` enum.
+- [`Task_Reorder_ToDo.md`](Task_Reorder_ToDo.md) mục 5.3 — **sequence chi
+  tiết nhất của cả 4 tài liệu**: tách `onTaskDragStarted`/
+  `onTaskDragStepped`/`onTaskDragEnded` để tránh spam request mạng khi kéo
+  qua nhiều hàng xóm (lý do kỹ thuật đầy đủ nằm ở đó, không lặp lại ở đây).
+  Quyết định mô hình dữ liệu `sortKey` liên quan: ADR
+  [0001](adr/0001-task-manual-reorder-sort-key.md).
+
+Class/sequence design nền (Phase 0–5: `AuthRepository`, `TaskRepository`,
+`safeApiCall`, OkHttp Interceptor 401...) ở mục 1–11 **vẫn đúng và không
+đổi** — 4 tính năng trên chỉ **thêm** class mới, không sửa lại các class
+đã có ở mục 3–4 (ngoại trừ `TaskRepository.createTask/editTask` thêm
+tham số optional `categoryId`/`dueDate`/`priority`/`insertPosition`, xem
+chữ ký đầy đủ hiện tại ở `domain/repository/TaskRepository.kt`).
+
+---
+
 # PHẦN A — BACKEND
 
 ## 1. Backend — Class/Module Design

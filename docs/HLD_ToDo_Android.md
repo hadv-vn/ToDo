@@ -30,6 +30,34 @@
 
 ---
 
+## CẬP NHẬT 2026-11-16 — 4 tính năng mở rộng (Category, Hạn chót, Mức ưu tiên, Kéo-thả) — bổ sung dưới đây, sơ đồ mermaid mục 1.1 KHÔNG được vẽ lại
+
+Sau khi HLD này được duyệt và code chạy qua Phase 0–5, project làm thêm 4
+tăng trưởng 🟡 (code ở commit `72cbd3b`), mỗi tăng trưởng có đặc tả riêng
+đầy đủ SRS+HLD+LLD+API ở 1 file (không mở rộng file này) —
+[`Task_Category_ToDo.md`](Task_Category_ToDo.md),
+[`Task_DueDate_ToDo.md`](Task_DueDate_ToDo.md),
+[`Task_Priority_ToDo.md`](Task_Priority_ToDo.md),
+[`Task_Reorder_ToDo.md`](Task_Reorder_ToDo.md). Tóm tắt tác động kiến trúc
+(đủ để người đọc HLD này biết "còn gì nữa đang chạy" — **sơ đồ mermaid mục
+1.1 bên dưới vẫn là bản Phase 0–5 gốc, chưa vẽ lại 4 khối mới**, xem mục 2
+để biết chi tiết thành phần):
+
+| Tính năng | Presentation (mới) | Domain (mới) | Data (mới) |
+|---|---|---|---|
+| Category | `CategoryListScreen`, `CreateCategoryScreen`, `EditCategoryScreen`, `CategoryFormViewModel`, `CategoryListViewModel` | `Category` entity, `CreateCategoryUseCase`/`UpdateCategoryUseCase`/`DeleteCategoryUseCase`/`GetCategoriesUseCase`, `CategoryRepository` interface | `CategoryRepositoryImpl`, `CategoryApiService` |
+| Hạn chót (DueDate) | `DueDateField` (trong `CreateTaskScreen`/`EditTaskScreen`) | `dueDate: LocalDate?` thêm vào `Task`/tham số `TaskRepository.createTask/editTask` | không có repository riêng — field đi chung `TaskRepositoryImpl` |
+| Mức ưu tiên (Priority) | `PriorityChipRow` | `TaskPriority` enum, tham số `TaskRepository.createTask/editTask` | đi chung `TaskRepositoryImpl` |
+| Kéo-thả (Reorder) | gesture kéo-thả tự viết trong `TaskListScreen`/`TaskListViewModel` (xem ADR 0001) | `ReorderTaskUseCase`, `InsertPosition` enum, `GetInsertPositionPreferenceUseCase`/`SetInsertPositionPreferenceUseCase` | `PreferencesRepositoryImpl` (DataStore, cho cài đặt insertPosition) |
+
+Backend: cả 4 tính năng sống trong `auth-core/backend/src/features/
+todo-task-module/` (cùng module Task, không tách service riêng) — xem ADR
+[0001](adr/0001-task-manual-reorder-sort-key.md) cho quyết định `sortKey`
+(Reorder) và ADR [0003](adr/0003-auth-core-shared-backend-submodule.md)
+cho lý do mọi backend mới đều vào `auth-core`, không tạo backend thứ 2.
+
+---
+
 ## 1. Sơ đồ thành phần
 
 ### 1.1 Sơ đồ tổng thể
