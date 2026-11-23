@@ -28,6 +28,10 @@ object Routes {
     // loadTasks() lại (xem LLD mục 5/6.3, "Luồng tải dữ liệu EditTaskScreen" + NavGraph.kt).
     const val TASK_LIST_REFRESH_NEEDED_KEY = "refreshNeeded"
 
+    // Cùng cơ chế với [TASK_LIST_REFRESH_NEEDED_KEY], áp dụng cho CATEGORY_LIST — set bởi
+    // CreateCategory/EditCategory trên `previousBackStackEntry` trước khi popBackStack().
+    const val CATEGORY_LIST_REFRESH_NEEDED_KEY = "categoryListRefreshNeeded"
+
     fun resetPassword(email: String): String = "reset_password/$email"
     fun editTask(taskId: String): String = "edit_task/$taskId"
     fun editCategory(categoryId: String): String = "edit_category/$categoryId"
