@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ToDo — AI Transformation Health Check</title>
+<style>
+  :root{
+    --surface-1:#fcfcfb; --page:#f9f9f7; --text-primary:#0b0b0b; --text-secondary:#52514e;
+    --muted:#898781; --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --blue:#2a78d6; --blue-soft:#cde2fb;
+    --good:#0ca30c; --warning:#fab219; --serious:#ec835a; --critical:#d03b3b;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+      --muted:#898781; --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+      --blue:#3987e5; --blue-soft:#15314f;
+    }
+  }
+  :root[data-theme="dark"]{
+    --surface-1:#1a1a19; --page:#0d0d0d; --text-primary:#ffffff; --text-secondary:#c3c2b7;
+    --muted:#898781; --grid:#2c2c2a; --baseline:#383835; --border:rgba(255,255,255,0.10);
+    --blue:#3987e5; --blue-soft:#15314f;
+  }
+  :root[data-theme="light"]{
+    --surface-1:#fcfcfb; --page:#f9f9f7; --text-primary:#0b0b0b; --text-secondary:#52514e;
+    --muted:#898781; --grid:#e1e0d9; --baseline:#c3c2b7; --border:rgba(11,11,11,0.10);
+    --blue:#2a78d6; --blue-soft:#cde2fb;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--page); color:var(--text-primary);
+    font-family:system-ui,-apple-system,"Segoe UI",sans-serif;
+    font-variant-numeric: proportional-nums;
+  }
+  .wrap{max-width:1180px; margin:0 auto; padding:28px 20px 60px;}
+  header.page h1{font-size:22px; margin:0 0 4px;}
+  header.page .sub{color:var(--text-secondary); font-size:14px; margin:0 0 2px;}
+  header.page .meta{color:var(--muted); font-size:12px; margin-top:10px;}
+  section{margin-top:34px;}
+  h2.section-title{font-size:16px; margin:0 0 4px; color:var(--text-primary);}
+  p.section-sub{font-size:13px; color:var(--text-secondary); margin:0 0 16px; max-width:760px;}
+
+  .tiles{display:grid; grid-template-columns:repeat(auto-fit,minmax(200px,1fr)); gap:14px; margin-top:16px;}
+  .tile{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:16px 18px;}
+  .tile .val{font-size:30px; font-weight:600; font-variant-numeric: tabular-nums; line-height:1.1;}
+  .tile .lbl{font-size:12.5px; color:var(--text-secondary); margin-top:4px;}
+
+  .grid{display:grid; grid-template-columns:repeat(auto-fit,minmax(260px,1fr)); gap:16px;}
+  .card{background:var(--surface-1); border:1px solid var(--border); border-radius:12px; padding:18px 18px 16px; display:flex; flex-direction:column;}
+  .card .k{font-size:11px; color:var(--muted); letter-spacing:.04em; text-transform:uppercase;}
+  .card h3{font-size:14.5px; margin:2px 0 10px; line-height:1.35;}
+  .gauge-num{font-size:26px; font-weight:700; font-variant-numeric:tabular-nums;}
+  .gauge-unit{font-size:14px; font-weight:500; color:var(--text-secondary);}
+  .badge{display:inline-flex; align-items:center; gap:5px; font-size:12px; font-weight:600; padding:3px 9px; border-radius:999px; margin-top:4px; width:fit-content;}
+  .badge.good{color:var(--good); background:color-mix(in srgb, var(--good) 14%, transparent);}
+  .badge.warning{color:#9a6a00; background:color-mix(in srgb, var(--warning) 22%, transparent);}
+  .badge.serious{color:#a8431f; background:color-mix(in srgb, var(--serious) 20%, transparent);}
+  .badge.critical{color:var(--critical); background:color-mix(in srgb, var(--critical) 14%, transparent);}
+  .badge.info{color:var(--blue); background:color-mix(in srgb, var(--blue) 14%, transparent);}
+  .formula{font-size:11.5px; color:var(--muted); margin-top:10px; font-family:ui-monospace,SFMono-Regular,Consolas,monospace;}
+  .evidence{margin:10px 0 0; padding:0; list-style:none; font-size:12px; color:var(--text-secondary);}
+  .evidence li{position:relative; padding-left:12px; margin-bottom:4px; line-height:1.4;}
+  .evidence li::before{content:"–"; position:absolute; left:0; color:var(--muted);}
+  .evidence code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:11px; background:var(--grid); padding:0 4px; border-radius:4px;}
+
+  table.na{width:100%; border-collapse:collapse; font-size:13px; background:var(--surface-1); border:1px solid var(--border); border-radius:12px; overflow:hidden;}
+  table.na th, table.na td{padding:10px 14px; text-align:left; border-bottom:1px solid var(--grid);}
+  table.na th{color:var(--text-secondary); font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.03em;}
+  table.na tr:last-child td{border-bottom:none;}
+  .pill{font-size:11px; font-weight:600; color:var(--muted); background:var(--grid); padding:2px 8px; border-radius:999px;}
+
+  ol.findings{margin:0; padding:0 0 0 0; list-style:none; display:flex; flex-direction:column; gap:10px;}
+  ol.findings li{background:var(--surface-1); border:1px solid var(--border); border-left:4px solid var(--muted); border-radius:10px; padding:12px 16px; font-size:13.5px; line-height:1.5;}
+  ol.findings li.critical{border-left-color:var(--critical);}
+  ol.findings li.serious{border-left-color:var(--serious);}
+  ol.findings li.warning{border-left-color:var(--warning);}
+  ol.findings li.good{border-left-color:var(--good);}
+  ol.findings li .tag{display:inline-block; font-size:10.5px; font-weight:700; letter-spacing:.04em; text-transform:uppercase; padding:1px 7px; border-radius:5px; margin-right:8px; vertical-align:1px;}
+  ol.findings li.critical .tag{color:var(--critical); background:color-mix(in srgb, var(--critical) 14%, transparent);}
+  ol.findings li.serious .tag{color:#a8431f; background:color-mix(in srgb, var(--serious) 20%, transparent);}
+  ol.findings li.warning .tag{color:#9a6a00; background:color-mix(in srgb, var(--warning) 22%, transparent);}
+  ol.findings li.good .tag{color:var(--good); background:color-mix(in srgb, var(--good) 14%, transparent);}
+  ol.findings li code{font-family:ui-monospace,SFMono-Regular,Consolas,monospace; font-size:12px; background:var(--grid); padding:0 4px; border-radius:4px;}
+
+  footer{margin-top:44px; padding-top:18px; border-top:1px solid var(--grid); font-size:12px; color:var(--muted); line-height:1.6;}
+  footer a{color:var(--blue);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="page">
+    <h1>ToDo (Android) — AI Transformation Health Check</h1>
+    <p class="sub">Đo "sức khoẻ kho kiến thức" (Knowledge Health c1–c7) + KPI dự án, theo tiêu chí tại <code>AI Transformation Program §8</code>.</p>
+    <p class="meta">Tạo lúc 2026-11-23 · Dữ liệu lấy từ <code>git log</code>, <code>docs/*.md</code> và mã nguồn <code>android/app/src</code> tại commit <code>c55147a</code> (branch <code>master</code>) · Không có số liệu nào bị suy diễn/bịa — mục chưa có dữ liệu được đánh dấu rõ ở phần cuối.</p>
+  </header>
+
+  <section>
+    <div class="tiles">
+      <div class="tile">
+        <div class="val">90%</div>
+        <div class="lbl">Điểm Knowledge Health tổng hợp (trung bình c1–c7)</div>
+      </div>
+      <div class="tile">
+        <div class="val">5 / 7</div>
+        <div class="lbl">Chỉ số Knowledge Health đạt mốc gợi ý của Program</div>
+      </div>
+      <div class="tile">
+        <div class="val">5</div>
+        <div class="lbl">ADR trong repo ToDo — <code>0001</code>–<code>0005</code>, phủ đủ 5/5 thay đổi <code>feat:</code> lớn ban đầu; auth-core có 2, làm mẫu khởi điểm</div>
+      </div>
+      <div class="tile">
+        <div class="val">0 / 32</div>
+        <div class="lbl">UseCase/ViewModel/RepositoryImpl chưa có unit test — đã viết đủ 9 test còn thiếu (<code>./gradlew test</code> xanh)</div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Knowledge Health — c1–c7 (Program §8.2)</h2>
+    <p class="section-sub">7 chỉ số đo "kho tài liệu có còn là harness tốt cho AI không" — mốc gợi ý lấy nguyên từ Program. Mỗi gauge có công thức và bằng chứng cụ thể (file/commit) để không ai phải tin vào con số suông.</p>
+    <div class="grid" id="gaugeGridKnowledge"></div>
+  </section>
+
+  <section>
+    <h2 class="section-title">KPI dự án — proxy từ git log (Program §8.1)</h2>
+    <p class="section-sub">Program §8.1 đo bằng <strong>telemetry tay-ghi</strong> (giờ thật, Human-edit) mà ToDo chưa có file <code>DECISION-LOG-*.md</code>/telemetry nào để đọc. Hai chỉ số dưới đây là <strong>proxy suy ra từ git log</strong> — không phải số đo chính thức, hiển thị màu xanh thông tin (không chấm good/bad) để không lẫn với 7 chỉ số có mốc ở trên.</p>
+    <div class="grid" id="gaugeGridProxy"></div>
+  </section>
+
+  <section>
+    <h2 class="section-title">Chưa có dữ liệu — không bịa số</h2>
+    <p class="section-sub">Program §8.1 nhắc thẳng: "bắt AI bịa số" là lỗi cần luyện bắt (EX-05). 4 KPI sau <strong>không có nguồn dữ liệu thật trong repo</strong> nên để trống thay vì ước lượng:</p>
+    <table class="na">
+      <tr><th>KPI</th><th>Công thức (Program §8.1)</th><th>Vì sao chưa đo được</th><th></th></tr>
+      <tr><td>Review Time</td><td>Giờ review trung bình / artefact</td><td>Repo 1 tác giả, không có log thời gian review theo artefact</td><td><span class="pill">N/A</span></td></tr>
+      <tr><td>Estimation Accuracy</td><td>1 − |Actual − Estimate| ÷ Actual</td><td>Không có estimate ghi lại trước khi làm (không có WBS/estimate file)</td><td><span class="pill">N/A</span></td></tr>
+      <tr><td>Nén (Compression)</td><td>Giờ truyền thống ước tính ÷ Giờ người thật</td><td>Không có mốc "giờ truyền thống" để so sánh, và không ghi giờ ngồi máy thật</td><td><span class="pill">N/A</span></td></tr>
+      <tr><td>Hiệu quả token</td><td>MD quy đổi giao được ÷ Token tiêu (triệu)</td><td>Không có log token tiêu thụ</td><td><span class="pill">N/A</span></td></tr>
+    </table>
+  </section>
+
+  <section>
+    <h2 class="section-title">Phát hiện &amp; việc nên làm tiếp</h2>
+    <p class="section-sub">Xếp theo mức độ nghiêm trọng, mỗi phát hiện trỏ thẳng tới file/commit để kiểm lại bằng tay.</p>
+    <ol class="findings" id="findingsList"></ol>
+  </section>
+
+  <footer>
+    Nguồn phương pháp: <code>D:\MyStartUp\AI Transformation\docs\A-khoi-dong\AI-Transformation-Program.md</code> §8.1 (KPI dự án) &amp; §8.2 (Knowledge Health c1–c7).<br>
+    Cách cập nhật lại số liệu: chạy lại các lệnh <code>git log</code> / <code>grep -rE "FR-[0-9]+|NFR-[0-9]+"</code> mô tả trong <code>README.md</code> cùng thư mục này rồi sửa mảng dữ liệu trong <code>index.html</code> — dashboard này là file tĩnh, không tự refresh.<br>
+    Theo dữ liệu tại ngày tạo; không đại diện cho auth-core hay các project khác trong <code>D:\MyStartUp</code>.
+  </footer>
+
+</div>
+
+<script>
+const GAUGE_R = 80, GAUGE_CX = 100, GAUGE_CY = 95;
+const ARC_LEN = Math.PI * GAUGE_R;
+
+function arcPoint(pct, r){
+  const angleDeg = 180 - (pct/100)*180;
+  const rad = angleDeg * Math.PI/180;
+  return { x: GAUGE_CX + r*Math.cos(rad), y: GAUGE_CY - r*Math.sin(rad) };
+}
+
+function gaugeSVG(value, target, color){
+  const v = Math.max(0, Math.min(100, value));
+  const fillLen = ARC_LEN * v/100;
+  const track = `M ${GAUGE_CX-GAUGE_R},${GAUGE_CY} A ${GAUGE_R},${GAUGE_R} 0 0 1 ${GAUGE_CX+GAUGE_R},${GAUGE_CY}`;
+  let targetTick = '';
+  if (target !== null && target !== undefined){
+    const p1 = arcPoint(target, GAUGE_R-14);
+    const p2 = arcPoint(target, GAUGE_R+8);
+    targetTick = `<line x1="${p1.x.toFixed(1)}" y1="${p1.y.toFixed(1)}" x2="${p2.x.toFixed(1)}" y2="${p2.y.toFixed(1)}" stroke="var(--text-primary)" stroke-width="2" stroke-linecap="round" opacity="0.55"/>`;
+  }
+  return `
+  <svg viewBox="0 0 200 112" width="100%" height="128" role="img" aria-label="Gauge ${v}%">
+    <path d="${track}" fill="none" stroke="var(--grid)" stroke-width="14" stroke-linecap="round"/>
+    <path d="${track}" fill="none" stroke="${color}" stroke-width="14" stroke-linecap="round"
+          stroke-dasharray="${fillLen.toFixed(2)} ${ARC_LEN.toFixed(2)}"/>
+    ${targetTick}
+    <text x="${GAUGE_CX}" y="${GAUGE_CY-6}" text-anchor="middle" font-size="26" font-weight="700" fill="var(--text-primary)" font-family="system-ui,sans-serif">${value}<tspan font-size="14" font-weight="500" fill="var(--text-secondary)">%</tspan></text>
+  </svg>`;
+}
+
+const STATUS_META = {
+  good:     { icon:'✓', label:'Đạt mốc' },
+  warning:  { icon:'▲', label:'Gần đạt mốc' },
+  serious:  { icon:'■', label:'Dưới mốc nhiều' },
+  critical: { icon:'✕', label:'Nghiêm trọng' },
+  info:     { icon:'●', label:'Proxy — chưa có mốc chính thức' }
+};
+const STATUS_COLOR = { good:'var(--good)', warning:'var(--warning)', serious:'var(--serious)', critical:'var(--critical)', info:'var(--blue)' };
+
+function renderCard(g){
+  const meta = STATUS_META[g.status];
+  const color = STATUS_COLOR[g.status];
+  const targetLine = g.target !== null
+    ? `Mục tiêu gợi ý: ${g.direction === 'higher' ? '≥' : '≤'} ${g.target}%`
+    : 'Không có mốc chính thức (proxy)';
+  return `
+  <div class="card">
+    <div class="k">${g.key}</div>
+    <h3>${g.title}</h3>
+    ${gaugeSVG(g.value, g.target, color)}
+    <div class="badge ${g.status}">${meta.icon} ${g.statusLabel || meta.label}</div>
+    <div class="formula">${targetLine}<br>Công thức: ${g.formula}</div>
+    <ul class="evidence">${g.evidence.map(e => `<li>${e}</li>`).join('')}</ul>
+  </div>`;
+}
+
+const knowledgeHealth = [
+  {
+    key:'c1', title:'Traceability Coverage', value:77.8, target:80, direction:'higher',
+    status:'warning', statusLabel:'Gần đạt mốc (28/36)',
+    formula:'(Req có trace tới code/test ÷ tổng Req quan trọng) × 100%',
+    evidence:[
+      '36 mã FR/NFR duy nhất trong <code>docs/SRS_ToDo_Android.md</code> + 4 doc tính năng mới (<code>Task_Category/DueDate/Priority/Reorder_ToDo.md</code>).',
+      '28/36 mã được dẫn chiếu lại trong <code>docs/Test_Scenarios_ToDo_Android.md</code>, <code>Admin_Task_Statistics_ToDo.md</code> hoặc KDoc trong <code>android/app/src</code>.',
+      '8 mã mồ côi — toàn bộ là NFR: <code>NFR-2, 3, 5, 6, 7, 8, 9, 10</code> (hiệu năng/bảo mật/offline…) — không thấy trace rõ bằng grep, cần review tay.'
+    ]
+  },
+  {
+    key:'c2', title:'Change Coupling', value:66.7, target:70, direction:'higher',
+    status:'warning', statusLabel:'Gần đạt mốc (4/6)',
+    formula:'(Change set có doc update ÷ tổng change set đổi code) × 100%',
+    evidence:[
+      '6 commit đổi <code>android/app/src/main</code>; 4 commit đổi doc cùng lúc: <code>72cbd3b</code>, <code>3647a5e</code>, <code>53d6d66</code>, <code>659a35b</code>.',
+      '2 commit đổi code không kèm doc: <code>a76f537</code> (fix clickable CategoryRow), <code>9b76909</code> (fix AndroidKeyStore) — cả hai là bugfix nhỏ, chấp nhận được, nhưng vẫn tính là lệch doc.'
+    ]
+  },
+  {
+    key:'c3', title:'Freshness', value:100, target:85, direction:'higher',
+    status:'good', statusLabel:'Đạt mốc (10/10)',
+    formula:'(Doc còn khớp phiên bản code hiện tại ÷ tổng doc) × 100%',
+    evidence:[
+      '<strong>Đã sửa cả 5 doc stale</strong>: <code>SRS</code> (thêm mục "CẬP NHẬT 2026-11-16" trỏ FR-18..26 sang 4 doc tính năng), <code>HLD</code> (bảng thành phần mới Category/DueDate/Priority/Reorder), <code>LLD</code> (trỏ sang mục 5/5.3 của 4 doc tính năng cho class/sequence design), <code>API_Contract</code> (bảng endpoint mới + admin task-stats), <code>Test_Scenarios</code> (thêm mục 7 — 20 dòng TC-CAT/DUE/PRI/REORDER-*, trích đúng tên test thật).',
+      'Grep lại sau khi sửa: <code>HLD</code>/<code>LLD</code>/<code>API_Contract</code> giờ có 7/6/4 lần xuất hiện "category"/"reorder"; <code>SRS</code> đã có đủ FR-18..26.',
+      '<strong>Trung thực về khoảng trống còn lại</strong>: mục 7 mới của Test_Scenarios tự ghi rõ 4 kịch bản <em>chưa</em> có test (TC-CAT-07 clickable, TC-PRI-03 hiển thị màu, TC-REORDER-05 chống spam request — quan trọng nhất, TC-REORDER gesture thật trên UI) — "đã cập nhật doc" không có nghĩa "đã hết nợ test", hai việc khác nhau.',
+      'Mermaid diagram gốc ở HLD mục 1.1 <strong>không</strong> được vẽ lại (chỉ thêm bảng text) — ghi rõ trong doc để không ai hiểu nhầm diagram đã đồng bộ 100%.'
+    ]
+  },
+  {
+    key:'c4', title:'Orphan Rate', value:11.8, target:15, direction:'lower',
+    status:'good', statusLabel:'Trong ngưỡng cho phép (8/68)',
+    formula:'(Req mồ côi + module chưa có test) ÷ (tổng Req + tổng module) × 100%',
+    evidence:[
+      '<strong>Đã sửa phần module</strong>: viết đủ 9 unit test còn thiếu — <code>LoginUseCaseTest</code>, <code>LogoutUseCaseTest</code>, <code>ForgotPasswordUseCaseTest</code>, <code>ResetPasswordUseCaseTest</code>, <code>ResendVerificationUseCaseTest</code>, <code>GetTasksUseCaseTest</code>, <code>GetTaskByIdUseCaseTest</code>, <code>DeleteTaskUseCaseTest</code>, <code>ToggleTaskStatusUseCaseTest</code> (MockK, cùng khuôn với test hiện có). <code>./gradlew testDebugUnitTest</code> chạy xanh toàn bộ. Orphan module: 9/32 → 0/32.',
+      'Còn lại đúng 8 NFR mồ côi (xem c1: <code>NFR-2, 3, 5, 6, 7, 8, 9, 10</code>) trên tổng 36 Req — phần "req mồ côi" chưa xử lý vì cần review tay (NFR khó gắn mã trực tiếp vào code hơn FR), không phải lỗi test.',
+      'Orphan Rate: (8 req + 0 module) ÷ (36 req + 32 module) = 8/68 ≈ 11.8% — đã dưới mốc 15%.'
+    ]
+  },
+  {
+    key:'c5', title:'Review Evidence', value:94.4, target:90, direction:'higher',
+    status:'good', statusLabel:'Đạt mốc (17/18)',
+    formula:'(Commit có mô tả "cái gì / vì sao" rõ ràng ÷ tổng commit không-merge) × 100%',
+    evidence:[
+      '17/18 commit (loại trừ 1 merge commit) có body giải thích rõ theo đúng quy ước Conventional Commits của <code>CLAUDE.md</code> (vd <code>c55147a</code> giải thích chi tiết từng UseCase/Repository được bổ sung test).',
+      '1 ngoại lệ vi phạm: commit <code>4266b46</code> chỉ ghi "Update" — đúng kiểu message mà <code>CLAUDE.md</code> §9 cấm ("không dùng message kiểu Update").'
+    ]
+  },
+  {
+    key:'c6', title:'Decision Coverage', value:100, target:75, direction:'higher',
+    status:'good', statusLabel:'Đạt mốc (5/5)',
+    formula:'(Thay đổi lớn có ADR/Decision Log ÷ tổng thay đổi lớn) × 100%',
+    evidence:[
+      '5 commit <code>feat:</code> (<code>4eacf29</code>, <code>659a35b</code>, <code>53d6d66</code>, <code>eb94e26</code>, <code>72cbd3b</code>) — ban đầu không commit nào kèm ADR hay <code>DECISION-LOG-*.md</code> trong repo ToDo (0/5).',
+      '<strong>Đã bổ sung đủ 5 ADR</strong> (<code>docs/adr/0001</code>–<code>0005</code>), mỗi ADR khớp đúng 1 commit: <code>0001</code> fractional <code>sortKey</code> (<code>72cbd3b</code>) · <code>0002</code> session cookie CookieJar (<code>53d6d66</code>) · <code>0003</code> dùng chung backend qua submodule (<code>4eacf29</code>) · <code>0004</code> Clean Architecture nền Android (<code>659a35b</code>) · <code>0005</code> admin task-stats aggregate-only (<code>eb94e26</code>).',
+      'Submodule <code>auth-core</code> CÓ ADR từ trước (<code>auth-core/docs/architecture/adr/0001...</code>, <code>0002...</code>) — 5 ADR mới của ToDo cố ý mô phỏng đúng khuôn Status/Context/Decision/Consequences đó để nhất quán giữa 2 repo.',
+      'Lưu ý: cả 5 ADR đều viết <strong>retroactive</strong> (sau khi code đã chạy), không phải lúc ra quyết định — tốt hơn 0% nhưng chưa bằng việc viết ADR *trước khi* code như auth-core đã làm ở ADR 0001 của họ. Việc tiếp theo nên là viết ADR *trước khi code* cho quyết định kiến trúc kế tiếp, để không lặp lại kiểu "ghi lại sau" này.'
+    ]
+  },
+  {
+    key:'c7', title:'Retrieval Quality', value:100, target:70, direction:'higher',
+    status:'good', statusLabel:'Đạt mốc (5/5 spot-check)',
+    formula:'Spot-check 5 tính năng: tìm đủ spec + code + test ÷ tổng',
+    evidence:[
+      'Spot-check bằng prompt gợi ý của Program §8.2 (c7) cho 5 tính năng: Category, Reorder, DueDate, Priority, Toggle trạng thái task.',
+      '5/5 tìm đủ bộ ba spec+code+test: Category/Reorder/DueDate/Priority có <code>docs/Task_*_ToDo.md</code> + code + *Test.kt (thêm ở <code>c55147a</code>); Toggle trạng thái task có spec (SRS) + code + <strong>mới thêm</strong> <code>ToggleTaskStatusUseCaseTest.kt</code> (cùng lần sửa <code>c4</code>).',
+      'Trước đó 1/5 thiếu (<code>ToggleTaskStatusUseCase</code> không có test) — đã khớp lại sau khi viết 9 unit test còn thiếu, xem evidence ở <code>c4</code>.'
+    ]
+  }
+];
+
+const proxyKPI = [
+  {
+    key:'§8.1', title:'AI Adoption (proxy)', value:26.3, target:null, direction:'higher',
+    status:'info', statusLabel:'Proxy — chưa có mốc chính thức',
+    formula:'(Commit có "Co-Authored-By: Claude" ÷ tổng commit) × 100% — Program đo theo task dùng AI, không phải theo commit; đây chỉ là xấp xỉ.',
+    evidence:[
+      '5/19 commit có dòng "Co-Authored-By: Claude" trong message.',
+      'Đây KHÔNG phải "AI Adoption" đúng công thức Program (vốn đo theo task, cần Delegation Map + log thật) — chỉ là proxy tiện tay từ git log.'
+    ]
+  },
+  {
+    key:'§8.1', title:'Rework Rate (proxy)', value:26.3, target:null, direction:'lower',
+    status:'info', statusLabel:'Proxy — chưa có mốc chính thức',
+    formula:'(Commit "fix:" ÷ tổng commit) × 100% — Program đo theo artefact phải làm lại, đây là xấp xỉ qua loại commit.',
+    evidence:[
+      '5/19 commit mang tiền tố <code>fix:</code> (<code>a76f537</code>, <code>3647a5e</code>, <code>571d860</code>, <code>8465c01</code>, <code>9b76909</code>).',
+      '3/5 fix là do bump submodule <code>auth-core</code> (lỗi phát sinh từ backend, không phải rework code Android) — nếu chỉ tính fix thuần Android thì còn 2/19 ≈ 10.5%.'
+    ]
+  }
+];
+
+const findings = [
+  { sev:'warning', html:'<span class="tag">c1 · Traceability = 77.8%</span> Toàn bộ 8 mã mồ côi là NFR (hiệu năng/bảo mật/offline…) — nhiều khả năng NFR vẫn được tuân thủ trong code nhưng không gắn mã FR/NFR vào KDoc như FR thường được, nên grep không thấy. Cần review tay, không chắc là lỗ hổng thật.' },
+  { sev:'warning', html:'<span class="tag">Governance</span> Commit <code>4266b46 "Update"</code> vi phạm đúng quy ước <code>CLAUDE.md</code> §9 ("không dùng message kiểu Update"). Một vi phạm duy nhất trong 19 commit — không đáng ngại nhưng nên nhắc để không lặp lại.' },
+  { sev:'good', html:'<span class="tag">c3 · Freshness = 100% (đã sửa 5/5 doc stale)</span> Thêm mục "CẬP NHẬT 2026-11-16" (cùng khuôn với mục đã có sẵn ở <code>API_Contract</code>) vào <code>SRS</code>/<code>HLD</code>/<code>LLD</code>/<code>API_Contract</code>, và mục 7 (20 dòng TC-*) vào <code>Test_Scenarios</code>, trỏ đúng sang 4 doc tính năng + 2 ADR liên quan. <strong>Không</strong> vẽ lại mermaid diagram gốc của HLD — ghi rõ trong doc để tránh hiểu nhầm "đã đồng bộ 100%". Mục 7 mới cũng tự khai 4 kịch bản chưa có test (xem phần N/A ở trên không áp dụng — đây là nợ test thật, không phải thiếu dữ liệu).' },
+  { sev:'good', html:'<span class="tag">c6 · Decision Coverage = 100% (5/5, đã xong)</span> Đã thêm đủ 5 ADR cho toàn bộ 5 thay đổi <code>feat:</code> lớn ban đầu: <code>0001</code> sort-key reorder, <code>0002</code> session cookie, <code>0003</code> auth-core submodule, <code>0004</code> Clean Architecture nền Android, <code>0005</code> admin task-stats aggregate-only. <strong>Còn 1 việc chưa xong</strong>: cả 5 ADR đều viết retroactive (sau khi code đã chạy) — kỷ luật thật của Program là viết ADR <em>trước</em> khi code cho quyết định kiến trúc tiếp theo, không chỉ dừng ở "đã có đủ 5 file".' },
+  { sev:'good', html:'<span class="tag">c4 · Orphan Rate = 11.8% (đã sửa 9/9 module)</span> Viết đủ 9 unit test còn thiếu cho <code>LoginUseCase</code>, <code>LogoutUseCase</code>, <code>ForgotPasswordUseCase</code>, <code>ResetPasswordUseCase</code>, <code>ResendVerificationUseCase</code>, <code>GetTasksUseCase</code>, <code>GetTaskByIdUseCase</code>, <code>DeleteTaskUseCase</code>, <code>ToggleTaskStatusUseCase</code> — cùng khuôn MockK/JUnit4 với test hiện có, <code>./gradlew testDebugUnitTest</code> chạy xanh. Orphan module 9/32 → 0/32; phần "orphan req" (8 NFR) vẫn còn, cần review tay riêng, không phải việc viết test.' },
+  { sev:'good', html:'<span class="tag">c5 · c7</span> Review Evidence (94.4%) và Retrieval Quality (100%, sau khi thêm <code>ToggleTaskStatusUseCaseTest</code>) đều đạt mốc — commit message chi tiết và bộ ba spec+code+test cho cả 5 tính năng mới được giữ đồng bộ tốt, nên duy trì thói quen này khi thêm tính năng tiếp theo.' }
+];
+
+document.getElementById('gaugeGridKnowledge').innerHTML = knowledgeHealth.map(renderCard).join('');
+document.getElementById('gaugeGridProxy').innerHTML = proxyKPI.map(renderCard).join('');
+document.getElementById('findingsList').innerHTML = findings.map(f => `<li class="${f.sev}">${f.html}</li>`).join('');
+</script>
+</body>
+</html>
